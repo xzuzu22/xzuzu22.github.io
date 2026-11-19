@@ -31,7 +31,8 @@ function bindChips(id,key,num=true){
   box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{prof[key]=num?Number(c.dataset.v):c.dataset.v;save();sync();});
   sync();
 }
-bindChips('optSize','size');bindChips('optDiff','diff');bindChips('optTime','time');bindChips('optSkin','skin',false);bindChips('celChips','cel',false);document.getElementById('celChips').addEventListener('click',()=>{try{pushTag();}catch(e){}});
+bindChips('optSize','size');bindChips('optDiff','diff');bindChips('optTime','time');bindChips('optSkin','skin',false);
+document.querySelectorAll('#hostPanel .htab').forEach(t=>t.onclick=()=>{document.querySelectorAll('#hostPanel .htab').forEach(x=>x.setAttribute('aria-selected',String(x===t)));document.querySelectorAll('#hostPanel .hgroup').forEach(g=>g.hidden=g.dataset.hg!==t.dataset.ht);});bindChips('celChips','cel',false);document.getElementById('celChips').addEventListener('click',()=>{try{pushTag();}catch(e){}});
 ['optSkin','hsSkin'].forEach(id=>document.getElementById(id)?.addEventListener('click',e=>{const c=e.target.closest('.chip');if(c)skinImg(c.dataset.v);}));
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 

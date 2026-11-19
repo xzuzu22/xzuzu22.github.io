@@ -194,24 +194,44 @@
       <div class="tcol" id="col1"><h3><canvas width="40" height="40" style="width:20px;height:20px"></canvas><span></span><em></em></h3><div class="plist"></div><button class="join" data-team="blue">Bu takıma geç</button></div>
     </div>
     <div class="panel" id="hostPanel" hidden>
-      <h2>Oda sahibi ayarları</h2>
+      <div class="hphead"><h2>Oda ayarları</h2><span class="note">Sadece sen görüyorsun</span></div>
       <div class="pmenu" id="pMenu" hidden></div>
-      <div class="lbl">Saha</div>
-      <div class="row" id="hsMap"><button class="chip" data-v="classic">Classic</button><button class="chip" data-v="big">Big</button><button class="chip" data-v="huge">Huge</button></div>
-      <div class="row" id="hsTime"><button class="chip" data-v="180">3 dk</button><button class="chip" data-v="300">5 dk</button><button class="chip" data-v="420">7 dk</button></div>
-      <div class="row" id="hsGoals"><button class="chip" data-v="0">Gol sınırı yok</button><button class="chip" data-v="3">3 gol</button><button class="chip" data-v="5">5 gol</button><button class="chip" data-v="7">7 gol</button></div>
-      <div class="lbl">Saha görünümü <span class="pro">Premium</span></div>
-      <div class="row" id="hsSkin"><button class="chip skin" data-v="classic"><i class="skc"></i>Klasik</button><button class="chip skin" data-v="night"><img src="assets/skin-night.webp" alt="">Gece Işıkları</button><button class="chip skin" data-v="snow"><img src="assets/skin-snow.webp" alt="">Kar Fırtınası</button><button class="chip skin" data-v="beach"><img src="assets/skin-beach.webp" alt="">Plaj</button><button class="chip skin" data-v="rain"><img src="assets/skin-rain.webp" alt="">Sağanak</button><button class="chip skin" data-v="drizzle"><img src="assets/skin-rain.webp" alt="">Çisenti</button><button class="chip skin" data-v="sakura"><img src="assets/skin-sakura.webp" alt="">Kiraz Bahçesi</button></div>
-      <div class="lbl">Sol takımın forması</div>
-      <div class="kitpick" id="hsKit0"></div>
-      <div class="lbl">Sağ takımın forması</div>
-      <div class="kitpick" id="hsKit1"></div>
-      <label class="toggle"><input type="checkbox" id="hsFree"> Serbest takım seçimi (kapalıyken takımları sadece sen değiştirirsin)</label>
-      <div class="hostbar">
-        <button class="chip" id="hsBot0">+ Bot (sol)</button><button class="chip" id="hsBot1">+ Bot (sağ)</button><button class="chip" id="hsBotClear">Botları çıkar</button><button class="chip" id="hsShuffle">Takımları karıştır</button>
+      <div class="htabs" role="tablist">
+        <button class="htab" role="tab" data-ht="saha" aria-selected="true">Saha</button>
+        <button class="htab" role="tab" data-ht="mac" aria-selected="false">Maç</button>
+        <button class="htab" role="tab" data-ht="forma" aria-selected="false">Formalar</button>
+        <button class="htab" role="tab" data-ht="oyuncu" aria-selected="false">Oyuncular</button>
       </div>
-      <button class="big" id="hsStart">Maçı başlat</button>
-      <p class="note">Oyuncuya dokununca takımını değiştirebilir ya da odadan çıkarabilirsin. Maçı senin tarayıcın yönettiği için maç boyunca bu sekmeyi açık ve önde tut.</p>
+      <div class="hgroup" data-hg="saha">
+        <div class="lbl">Saha boyutu</div>
+        <div class="seg" id="hsMap"><button class="chip" data-v="classic">Classic<small>1v1 · 2v2</small></button><button class="chip" data-v="big">Big<small>3v3 · 4v4</small></button><button class="chip" data-v="huge">Huge<small>5v5</small></button></div>
+        <div class="lbl">Saha görünümü <span class="pro">Premium</span></div>
+        <div class="skingrid" id="hsSkin"><button class="chip skin" data-v="classic"><i class="skc"></i>Klasik</button><button class="chip skin" data-v="night"><img src="assets/skin-night.webp" alt="">Gece Işıkları</button><button class="chip skin" data-v="snow"><img src="assets/skin-snow.webp" alt="">Kar Fırtınası</button><button class="chip skin" data-v="beach"><img src="assets/skin-beach.webp" alt="">Plaj</button><button class="chip skin" data-v="rain"><img src="assets/skin-rain.webp" alt="">Sağanak</button><button class="chip skin" data-v="drizzle"><img src="assets/skin-rain.webp" alt="">Çisenti</button><button class="chip skin" data-v="sakura"><img src="assets/skin-sakura.webp" alt="">Kiraz Bahçesi</button></div>
+      </div>
+      <div class="hgroup" data-hg="mac" hidden>
+        <div class="lbl">Maç süresi</div>
+        <div class="seg" id="hsTime"><button class="chip" data-v="180">3 dk</button><button class="chip" data-v="300">5 dk</button><button class="chip" data-v="420">7 dk</button></div>
+        <div class="lbl">Gol sınırı</div>
+        <div class="seg" id="hsGoals"><button class="chip" data-v="0">Yok</button><button class="chip" data-v="3">3 gol</button><button class="chip" data-v="5">5 gol</button><button class="chip" data-v="7">7 gol</button></div>
+        <label class="toggle"><input type="checkbox" id="hsFree"> Oyuncular takımını kendi seçsin <small>(kapalıyken takımları sadece sen değiştirirsin)</small></label>
+      </div>
+      <div class="hgroup" data-hg="forma" hidden>
+        <div class="kits2">
+          <div><div class="lbl">Sol takım</div><div class="kitpick" id="hsKit0"></div></div>
+          <div><div class="lbl">Sağ takım</div><div class="kitpick" id="hsKit1"></div></div>
+        </div>
+      </div>
+      <div class="hgroup" data-hg="oyuncu" hidden>
+        <div class="lbl">Botlar</div>
+        <div class="seg"><button class="chip" id="hsBot0">+ Sola bot</button><button class="chip" id="hsBot1">+ Sağa bot</button><button class="chip" id="hsBotClear">Botları çıkar</button></div>
+        <div class="lbl">Takımlar</div>
+        <div class="seg"><button class="chip" id="hsShuffle">Takımları karıştır</button></div>
+        <p class="note">Bir oyuncuya dokununca takımını değiştirebilir, istatistiğine bakabilir ya da odadan çıkarabilirsin.</p>
+      </div>
+      <div class="hpfoot">
+        <button class="big" id="hsStart">Maçı başlat</button>
+        <p class="note">Maçı senin tarayıcın yönetiyor, maç boyunca bu sekmeyi açık ve önde tut.</p>
+      </div>
     </div>
     <div class="panel">
       <h2>Oda sohbeti</h2>
