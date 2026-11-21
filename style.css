@@ -377,3 +377,22 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 #gateForm .lbl{white-space:nowrap}
 #gNum{text-align:center}
 .leavenote{color:#ff9a8f;margin-top:8px}
+/* sıralama ve sezon ödülleri */
+.rankbox{border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(255,255,255,.03)}
+.rankbox header b{display:block;font-family:var(--f-display);font-size:22px;letter-spacing:.04em}
+.rankbox header span{font-size:13px;color:var(--muted)}
+.rewards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:10px 0}
+.rewards .note{grid-column:1/-1;margin:0}
+.rw{display:grid;grid-template-columns:auto 1fr;gap:0 10px;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid var(--tc);background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 14%,transparent),transparent)}
+.rw i{grid-row:1/3;font-style:normal;font-size:26px}.rw b{color:var(--tc)}.rw span{font-size:12px;color:var(--muted)}
+.rlist{display:flex;flex-direction:column;gap:4px}
+.rrow{display:grid;grid-template-columns:34px 28px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.04);cursor:pointer;font-size:14px}
+.rrow:hover{background:rgba(255,255,255,.08)}.rrow.me{outline:1px solid var(--flood)}
+.rrow .pos{text-align:center;font-weight:800;color:var(--muted)}.rrow.p1 .pos,.rrow.p2 .pos,.rrow.p3 .pos{font-size:18px}
+.rrow .av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#2a3d31;font-size:11px;font-weight:800}
+.rrow .nm{display:flex;align-items:center;flex-wrap:wrap;min-width:0}.rrow .pt{font-weight:800;font-variant-numeric:tabular-nums}
+.rlist .chip{align-self:center;margin-top:6px}
+.rme{margin-top:8px;font-size:13px;font-weight:700;color:var(--flood)}.rme:empty{display:none}
+.tierb{margin-left:4px;font-size:14px}
+.myrew{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;margin:4px 0 8px}.myrew .muted{color:var(--muted)}
+.rewb{padding:2px 10px;border-radius:99px;border:1px solid var(--tc);color:var(--tc);font-weight:700}
