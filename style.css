@@ -337,3 +337,24 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .frow .fact{grid-area:act;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .invpanel{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.invpanel b{width:100%}
 .invtoast{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px);padding:10px 12px;border-radius:12px;background:#132219;border:1px solid var(--flood);box-shadow:0 8px 30px rgba(0,0,0,.5);font-weight:700;font-size:14px}
+/* hafta sonu kupası */
+.cupbox{border:1px solid #f2c23066;border-radius:12px;background:linear-gradient(180deg,rgba(242,194,48,.08),rgba(255,255,255,.02));padding:12px}
+.cupbox header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cupbox header img{width:40px;height:40px}
+.cupbox header>div:nth-child(2){flex:1;min-width:200px;display:flex;flex-direction:column}
+.cupbox header b{font-family:var(--f-display);font-size:22px;letter-spacing:.04em;color:var(--flood)}
+.cupbox header span{font-size:13px;color:var(--muted)}
+.cupact{display:flex;gap:6px}
+.cupents{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cupent{padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.07);font-size:13px;font-weight:700}.cupent.me{background:var(--flood);color:#111}
+.bracket{display:flex;gap:14px;overflow-x:auto;margin-top:12px;padding-bottom:4px}
+.bcol{display:flex;flex-direction:column;gap:8px;min-width:165px}
+.bms{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:10px}
+.bh{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:center}
+.bm{border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.25);overflow:hidden}
+.bm.mine{border-color:var(--flood)}
+.bt{display:flex;justify-content:space-between;gap:8px;padding:6px 10px;font-size:13px}.bt+.bt{border-top:1px solid var(--line)}
+.bt.win{font-weight:800;color:#7fe0aa}.bt.lose{color:var(--muted);text-decoration:line-through}
+.bact{display:flex;gap:6px;flex-wrap:wrap;padding:6px 8px;border-top:1px solid var(--line)}
+.bchamp{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:34px;padding:12px;border:1px solid var(--flood);border-radius:10px}.bchamp b{font-size:15px;color:var(--flood)}
+.cupmsg:empty{display:none}
