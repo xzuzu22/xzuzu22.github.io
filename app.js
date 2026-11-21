@@ -103,7 +103,13 @@ async function ambTick(){
 setInterval(ambTick,400);document.addEventListener('visibilitychange',ambTick);
 function sKick(power=1){if(!ac)return;const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();o.type='sine';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(60,t+0.09);g.gain.setValueAtTime(0.35*power,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+0.13);}
 function sWhistle(len=0.35,times=1){if(!ac)return;for(let i=0;i<times;i++){const t=ac.currentTime+i*(len+0.08),o=ac.createOscillator(),l=ac.createOscillator(),lg=ac.createGain(),g=ac.createGain();o.type='square';o.frequency.value=2900;l.frequency.value=28;lg.gain.value=120;l.connect(lg).connect(o.frequency);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.06,t+0.02);g.gain.setValueAtTime(0.06,t+len-0.04);g.gain.linearRampToValueAtTime(0,t+len);o.connect(g).connect(ac.destination);o.start(t);l.start(t);o.stop(t+len);l.stop(t+len);}}
-function sCrowd(){if(!ac)return;const t=ac.currentTime,len=1.6,buf=ac.createBuffer(1,ac.sampleRate*len,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1);const s=ac.createBufferSource();s.buffer=buf;const f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=0.6;const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.25,t+0.15);g.gain.exponentialRampToValueAtTime(0.001,t+len);s.connect(f).connect(g).connect(ac.destination);s.start(t);}
+// gol sesi: kayıttan (assets/goal-sound.mp3); yüklenemezse eski uğultu çalar
+const GOALSND={buf:null,loading:false};
+function loadGoalSnd(){if(GOALSND.buf||GOALSND.loading||!ac)return;GOALSND.loading=true;fetch('assets/goal-sound.mp3').then(r=>r.arrayBuffer()).then(b=>ac.decodeAudioData(b)).then(b=>{GOALSND.buf=b;}).catch(()=>{}).finally(()=>{GOALSND.loading=false;});}
+function sCrowd(){if(!ac)return;loadGoalSnd();
+  if(GOALSND.buf){const s=ac.createBufferSource();s.buffer=GOALSND.buf;const g=ac.createGain();g.gain.value=0.9;s.connect(g).connect(ac.destination);s.start();return;}
+  sCrowdNoise();}
+function sCrowdNoise(){if(!ac)return;const t=ac.currentTime,len=1.6,buf=ac.createBuffer(1,ac.sampleRate*len,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1);const s=ac.createBufferSource();s.buffer=buf;const f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=0.6;const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.25,t+0.15);g.gain.exponentialRampToValueAtTime(0.001,t+len);s.connect(f).connect(g).connect(ac.destination);s.start(t);}
 
 // ---------- Saha ve fizik ----------
 const PR=15,BR=10,POSTR=8;
@@ -156,7 +162,7 @@ function startMatch(opt={}){
     players,ball:{x:0,y:0,vx:0,vy:0,r:BR,im:1},
     kickoff:true,kickTeam:training?0:(Math.random()<0.5?0:1),state:'play',stateT:0,golden:false,paused:false,opt,
     net:opt.net||null,skin:opt.skin||prof.skin,mapKey:opt.map||'classic',myTeam:opt.myTeam??0,goalLimit:opt.goals||0,kseq:0,gseq:0,lastGoal:-1,gi:-1,ai:-1,t1:null,t2:null,bubbles:{},tick:0};
-  CELFX=[];preloadCels();
+  CELFX=[];preloadCels();loadGoalSnd();
   resetPositions();
   show('game');$('endOv').hidden=true;$('pauseOv').hidden=true;
   $('againBtn').textContent=G.net?'Odaya dön':'Rövanş';$('endMenu').textContent=G.net?'Odadan çık':'Menü';
@@ -1163,7 +1169,7 @@ function buildClientGame(pr){
   G={net:{role:'client'},players,ball:{x:0,y:0,tx:0,ty:0,r:BR},kits,score:[0,0],clock:pr.cfg.time||180,state:'play',golden:false,paused:false,
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
-  CELFX=[];preloadCels();
+  CELFX=[];preloadCels();loadGoalSnd();
   if(mine){show('game');resize();sWhistle(0.45,1);}else renderRoom();
 }
 function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;NET.snap=g;}
