@@ -288,3 +288,17 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .lfrow .w{color:var(--muted)}.lfrow .h{text-align:right}.lfrow b{min-width:44px;text-align:center}
 .lfrow.me{color:var(--flood)}
 @media (max-width:520px){.lmrow{grid-template-columns:1fr auto}.lmwhen{grid-column:1/-1}.lfrow{grid-template-columns:1fr auto 1fr}.lfrow .w{grid-column:1/-1}}
+/* gol tekrarı */
+.endgoals{text-align:left}
+.eglbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 6px}
+.egrow{display:flex;flex-wrap:wrap;gap:6px}
+.egbtn{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--chalk);font:inherit;font-size:13px;cursor:pointer;box-shadow:inset 3px 0 0 var(--k)}
+.egbtn span{font-weight:800}.egbtn small{color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.egbtn:hover{border-color:var(--flood)}
+#repOv{z-index:30}
+.overlay .reppanel{width:min(920px,100%);max-width:none;gap:10px}
+.replbl{font-weight:700;font-size:15px}
+#repCv{width:100%;max-height:calc(100dvh - 170px);aspect-ratio:16/9.6;border-radius:8px;display:block;background:#2f6b34}
+.repctl{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.repctl .chip[aria-pressed="true"]{background:var(--flood);color:#111;border-color:var(--flood)}
+#repMsg:empty{display:none}

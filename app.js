@@ -161,7 +161,7 @@ function startMatch(opt={}){
   G={size,training,diff:DIFF[opt.diff??prof.diff],time:opt.time||prof.time,clock:opt.time||prof.time,score:[0,0],kits,
     players,ball:{x:0,y:0,vx:0,vy:0,r:BR,im:1},
     kickoff:true,kickTeam:training?0:(Math.random()<0.5?0:1),state:'play',stateT:0,golden:false,paused:false,opt,
-    net:opt.net||null,skin:opt.skin||prof.skin,mapKey:opt.map||'classic',myTeam:opt.myTeam??0,goalLimit:opt.goals||0,kseq:0,gseq:0,lastGoal:-1,gi:-1,ai:-1,t1:null,t2:null,bubbles:{},tick:0};
+    net:opt.net||null,skin:opt.skin||prof.skin,mapKey:opt.map||'classic',myTeam:opt.myTeam??0,goalLimit:opt.goals||0,kseq:0,gseq:0,lastGoal:-1,gi:-1,ai:-1,t1:null,t2:null,bubbles:{},tick:0,rec:[],goals:[],pend:null,pip:null};
   CELFX=[];preloadCels();loadGoalSnd();
   resetPositions();
   show('game');$('endOv').hidden=true;$('pauseOv').hidden=true;
@@ -326,7 +326,7 @@ function goal(team){
   if(sc&&sc.team===team){sc.g=(sc.g||0)+1;G.gi=G.players.indexOf(sc);if(as&&as.team===team&&as!==sc){as.a=(as.a||0)+1;G.ai=G.players.indexOf(as);}}
   startCel(G.players[G.gi],team);
   goalBanner((G.training||G.myTeam<0||team===G.myTeam)?'GOL!':'GOL YEDİK',G.gi,G.ai,sc&&sc.team!==team?G.players.indexOf(sc):-1);
-  sCrowd();renderHud();
+  sCrowd();renderHud();repGoal(team,G.gi,G.ai,sc&&sc.team!==team?G.players.indexOf(sc):-1);
   if(G.golden||(G.goalLimit&&G.score[team]>=G.goalLimit)){G.over=true;}
 }
 // ---------- Gol sevinçleri (premium efektler) ----------
@@ -414,7 +414,7 @@ function endMatch(){
   $('endScore').textContent=`${a} – ${c}`;
   $('endLbl').textContent=`${G.kits[0].abbr||'SEN'} · ${G.kits[1].abbr}`;
   $('endMsg').textContent=a>c?'Kazandın. Bir zorluk seviyesi yukarı çıkmayı dene.':a<c?'Bu sefer olmadı. Rövanşta görüşürüz.':'Berabere.';
-  renderEndStats();$('endOv').hidden=false;
+  renderEndStats();renderEndGoals();$('endOv').hidden=false;
 }
 function renderHud(){
   if(!G)return;
@@ -624,6 +624,105 @@ function drawWeather(){
     a*=reduceMotion?0.12:0.32;
     if(a>0.01){ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=`rgba(225,235,255,${a})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();}}
 }
+// ---------- Gol tekrarı ----------
+// Son ~5 saniyeyi 30 karede bir kaydeder; her golde kısa bir klip saklanır.
+const REC_HZ=30,REC_KEEP=REC_HZ*5,REC_TAIL=REC_HZ*1;
+function recTick(t){
+  if(!G||G.paused||G.state==='over'&&!G.pend)return;
+  if(t-(G.recAt||0)<1000/REC_HZ-2)return;G.recAt=t;
+  const f={p:G.players.map(p=>[Math.round(p.x),Math.round(p.y),p.kick?1:0]),b:[Math.round(G.ball.x),Math.round(G.ball.y)]};
+  G.rec.push(f);if(G.rec.length>REC_KEEP)G.rec.shift();
+  if(G.pend){G.pend.frames.push(f);if(--G.pend.tail<=0){G.goals.push(G.pend);G.pend=null;}}
+}
+function repGoal(team,gi,ai,og){
+  if(!G)return;if(G.pend){G.goals.push(G.pend);G.pend=null;}
+  const P=G.players;
+  G.pend={team,gi,ai,og,score:[...G.score],scorer:P[gi]?P[gi].name:P[og]?P[og].name+' (k.k.)':'',assist:P[ai]?P[ai].name:'',frames:G.rec.slice(),cut:G.rec.length,tail:REC_TAIL};
+  if(!G.training&&G.rec.length>20&&prof.pip!==false)G.pip={frames:G.rec.slice(-Math.round(REC_HZ*1.7)),t0:performance.now()+350};
+}
+function allGoals(){return G?[...G.goals,...(G.pend?[G.pend]:[])]:[];}
+// klibin bir karesini verilen bölgeye çizer (ekran kordinatı)
+function drawRepFrame(c,x0,y0,w,h,f,kits,plist,opt={}){
+  const mx=FW+GD+14,my=FH+14;let sc=Math.min(w/(2*mx),h/(2*my)),cx=0,cy=0;
+  if(opt.zoom&&opt.zoom>1){sc*=opt.zoom;const hx=mx-w/sc/2,hy=my-h/sc/2;cx=hx>0?Math.max(-hx,Math.min(hx,opt.cx||0)):0;cy=hy>0?Math.max(-hy,Math.min(hy,opt.cy||0)):0;}
+  c.save();c.beginPath();c.rect(x0,y0,w,h);c.clip();
+  c.fillStyle='#2f6b34';c.fillRect(x0,y0,w,h);
+  c.translate(x0+w/2,y0+h/2);c.scale(sc,sc);c.translate(-cx,-cy);
+  const sw=(2*FW)/10;for(let i=0;i<10;i+=2){c.fillStyle='rgba(255,255,255,.045)';c.fillRect(-FW+i*sw,-FH,sw,2*FH);}
+  c.strokeStyle='rgba(243,241,232,.85)';c.lineWidth=3;c.strokeRect(-FW,-FH,2*FW,2*FH);
+  c.beginPath();c.moveTo(0,-FH);c.lineTo(0,FH);c.stroke();c.beginPath();c.arc(0,0,KR,0,Math.PI*2);c.stroke();
+  for(const s2 of[-1,1]){const a=s2*FW,b=s2*(FW+GD);c.fillStyle='rgba(0,0,0,.25)';c.fillRect(Math.min(a,b),-GH,GD,2*GH);c.strokeStyle='#f3f1e8';c.beginPath();c.moveTo(a,-GH);c.lineTo(b,-GH);c.lineTo(b,GH);c.lineTo(a,GH);c.stroke();}
+  for(const q of posts){c.fillStyle=kits[q.team].p;c.beginPath();c.arc(q.x,q.y,q.r,0,Math.PI*2);c.fill();c.lineWidth=2;c.strokeStyle='#000';c.stroke();}
+  plist.forEach((p,i)=>{const v=f.p[i];if(!v)return;
+    if(opt.hi===i){c.strokeStyle='rgba(242,194,48,.95)';c.lineWidth=3;c.beginPath();c.arc(v[0],v[1],p.r+7,0,Math.PI*2);c.stroke();}
+    drawDisc(c,v[0],v[1],p.r,kits[p.team],p.avatar,{kick:!!v[2],name:opt.names?p.name:'',nameColor:p.nameColor,tag:opt.names?p.tag:''});});
+  if(opt.trail){c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=3;c.beginPath();opt.trail.forEach((b,k)=>k?c.lineTo(b[0],b[1]):c.moveTo(b[0],b[1]));c.stroke();}
+  c.fillStyle='#fff';c.beginPath();c.arc(f.b[0],f.b[1],G.ball.r,0,Math.PI*2);c.fill();c.lineWidth=2;c.strokeStyle='#000';c.stroke();
+  c.restore();
+}
+function drawPip(){
+  const P=G.pip;if(!P)return;const now=performance.now();if(now<P.t0)return;
+  const n=P.frames.length,el=(now-P.t0)/1000*REC_HZ*0.7,i=Math.floor(el);
+  if(i>=n+8){G.pip=null;return;}
+  const f=P.frames[Math.min(n-1,i)];if(!f||!f.p){G.pip=null;return;}
+  const w=Math.min(300,innerWidth*0.42),h=w*0.6,x=innerWidth-w-12,y=54;
+  const a=Math.min(1,(now-P.t0)/200,(n+8-el)/6);
+  ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=a;
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-3,y-3,w+6,h+22);
+  drawRepFrame(ctx,x,y,w,h,f,G.kits,G.players,{zoom:1.7,cx:f.b[0],cy:f.b[1],hi:-1});
+  ctx.fillStyle='#f2c230';ctx.font='800 12px Inter,system-ui,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('▶ TEKRAR · YAVAŞ ÇEKİM',x+4,y+h+9);
+  ctx.restore();
+}
+function renderEndGoals(){
+  const box=$('endGoals');if(!box)return;box.innerHTML='';const gs=allGoals().filter(g=>g.frames.length>10);
+  if(!G||G.training||!gs.length){box.hidden=true;return;}box.hidden=false;
+  const h=document.createElement('div');h.className='eglbl';h.textContent='Maçın golleri';box.appendChild(h);
+  const row=document.createElement('div');row.className='egrow';
+  gs.forEach((g,i)=>{const b=document.createElement('button');b.className='egbtn';b.style.setProperty('--k',G.kits[g.team].p);
+    const sp=document.createElement('span');sp.textContent=`${g.score[0]}–${g.score[1]}`;const nm=document.createElement('small');nm.textContent=g.scorer||'Gol';
+    b.append('▶ ',sp,nm);b.onclick=()=>openReplay(i);row.appendChild(b);});
+  box.appendChild(row);
+}
+const RP={i:0,t:0,play:true,speed:1,last:0,raf:0,rec:null};
+function openReplay(i){if(!G)return;const gs=allGoals().filter(g=>g.frames.length>10);if(!gs.length)return;RP.list=gs;RP.kits=G.kits;RP.pl=G.players.map(p=>({...p}));
+  RP.i=(i+gs.length)%gs.length;RP.t=0;RP.play=true;$('repOv').hidden=false;repLabel();cancelAnimationFrame(RP.raf);RP.last=performance.now();RP.raf=requestAnimationFrame(repLoop);}
+function repLabel(){const g=RP.list[RP.i];$('repLbl').textContent=`Gol ${RP.i+1}/${RP.list.length} · ${g.score[0]}–${g.score[1]}${g.scorer?' · '+g.scorer:''}${g.assist?' (asist '+g.assist+')':''}`;
+  $('repSpeed').textContent=RP.speed===1?'1x':'0.5x';$('repPlay').textContent=RP.play?'❚❚':'▶';}
+function repLoop(now){
+  if($('repOv').hidden){RP.raf=0;return;}RP.raf=requestAnimationFrame(repLoop);
+  const g=RP.list[RP.i],n=g.frames.length;const dt=Math.min(.1,(now-RP.last)/1000);RP.last=now;
+  // gole yakın anlar otomatik yavaşlar
+  const near=Math.abs(RP.t-g.cut)<REC_HZ*0.6?0.45:1;
+  if(RP.play)RP.t+=dt*REC_HZ*RP.speed*near;
+  if(RP.t>=n-1){if(RP.rec){RP.rec.stop();RP.rec=null;}RP.t=0;}
+  const cv2=$('repCv'),c=cv2.getContext('2d');const W=cv2.clientWidth,H=cv2.clientHeight,d=Math.min(2,devicePixelRatio||1);
+  if(cv2.width!==Math.round(W*d)||cv2.height!==Math.round(H*d)){cv2.width=Math.round(W*d);cv2.height=Math.round(H*d);}
+  c.setTransform(d,0,0,d,0,0);
+  const i0=Math.floor(RP.t),fr=RP.t-i0,a=g.frames[i0],b=g.frames[Math.min(n-1,i0+1)];if(!a||!b||!a.p)return;
+  const f={p:a.p.map((v,k)=>{const w=b.p[k]||v;return [v[0]+(w[0]-v[0])*fr,v[1]+(w[1]-v[1])*fr,v[2]];}),b:[a.b[0]+(b.b[0]-a.b[0])*fr,a.b[1]+(b.b[1]-a.b[1])*fr]};
+  const trail=g.frames.slice(Math.max(0,i0-24),i0+1).map(x=>x.b);
+  const z=RP.zoom?1.8:1;
+  drawRepFrame(c,0,0,W,H,f,RP.kits,RP.pl,{names:true,hi:g.gi,trail,zoom:z,cx:f.b[0],cy:f.b[1]});
+  c.fillStyle='rgba(0,0,0,.4)';c.fillRect(0,H-4,W,4);c.fillStyle='#f2c230';c.fillRect(0,H-4,W*(RP.t/(n-1)),4);
+  if(RP.t>g.cut-1){c.fillStyle='rgba(242,194,48,'+Math.max(0,0.9-(RP.t-g.cut)/REC_HZ)+')';c.font='900 '+Math.round(H*0.16)+'px "Saira Condensed",sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('GOL!',W/2,H/2);}
+  if(RP.rec){c.fillStyle='#e0483e';c.beginPath();c.arc(14,14,6,0,Math.PI*2);c.fill();}
+}
+function repSave(){
+  const cv2=$('repCv');if(!cv2.captureStream||typeof MediaRecorder==='undefined'){$('repMsg').textContent='Bu tarayıcı video kaydını desteklemiyor.';return;}
+  const types=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
+  try{const rec=new MediaRecorder(cv2.captureStream(30),type?{mimeType:type,videoBitsPerSecond:4e6}:undefined);const parts=[];
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data);};
+    rec.onstop=()=>{const blob=new Blob(parts,{type:rec.mimeType||'video/webm'});const ext=/mp4/.test(blob.type)?'mp4':'webm';const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`uzkball-gol-${RP.i+1}.${ext}`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);$('repMsg').textContent='Video hazır.';};
+    RP.t=0;RP.play=true;RP.speed=1;repLabel();rec.start();RP.rec=rec;$('repMsg').textContent='Kaydediliyor… klip bitince iner.';}catch(e){$('repMsg').textContent='Video kaydedilemedi.';}
+}
+$('repClose').onclick=()=>{if(RP.rec){try{RP.rec.stop();}catch(e){}RP.rec=null;}$('repOv').hidden=true;$('repMsg').textContent='';};
+$('repPrev').onclick=()=>{RP.i=(RP.i-1+RP.list.length)%RP.list.length;RP.t=0;repLabel();};
+$('repNext').onclick=()=>{RP.i=(RP.i+1)%RP.list.length;RP.t=0;repLabel();};
+$('repPlay').onclick=()=>{RP.play=!RP.play;repLabel();};
+$('repSpeed').onclick=()=>{RP.speed=RP.speed===1?0.5:1;repLabel();};
+$('repZoom').onclick=()=>{RP.zoom=!RP.zoom;$('repZoom').setAttribute('aria-pressed',String(!!RP.zoom));};
+$('repSave').onclick=repSave;
+
 function draw(){
   ctx.strokeStyle=drawField();ctx.lineWidth=3;
   ctx.strokeRect(-FW,-FH,2*FW,2*FH);
@@ -651,6 +750,7 @@ function draw(){
   drawCel('over');
   drawOffMe();
   drawBubbles();
+  drawPip();
   if(G.paused&&G.net){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#f2c230';ctx.font='800 42px "Saira Condensed",sans-serif';ctx.textAlign='center';ctx.fillText('DURAKLATILDI',innerWidth/2,innerHeight/2);}
   // joystick
   if(joy.id!==null){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(joy.ox,joy.oy,50,0,Math.PI*2);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.arc(joy.ox+joy.x*50,joy.oy+joy.y*50,22,0,Math.PI*2);ctx.fill();}
@@ -671,11 +771,12 @@ function loop(t){
   requestAnimationFrame(loop);
   if(!G){last=t;return;}
   const dt=Math.min(0.1,(t-last)/1000);last=t;
-  if(G.net&&G.net.role==='client'){if(!$('game').hidden){clientFrame();if(G)draw();}return;}
+  if(G.net&&G.net.role==='client'){if(!$('game').hidden){clientFrame();if(G){recTick(t);draw();}}return;}
   const host=G.net&&G.net.role==='host';
   if($('game').hidden&&!host)return;
   if(!G.paused&&G.state!=='over'){acc+=dt;while(acc>=1/60){step();acc-=1/60;if(!G||G.state==='over')break;}}
   if(host&&G)netHostPublish();
+  if(G)recTick(t);
   if(G&&!$('game').hidden)draw();
 }
 requestAnimationFrame(loop);
@@ -1237,7 +1338,7 @@ function buildClientGame(pr){
     return {pid:String(r[0]),team:t,idx:i,human:!!r[5],local:r[0]===TAB,remote:false,avatar:cleanStr(r[2],2),name:cleanStr(r[3],14),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),g:0,a:0,x:0,y:0,tx:0,ty:0,r:PR,kick:false};});
   const mine=players.find(p=>p.local);
   G={net:{role:'client'},players,ball:{x:0,y:0,tx:0,ty:0,r:BR},kits,score:[0,0],clock:pr.cfg.time||180,state:'play',golden:false,paused:false,
-    skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true};
+    skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
   if(mine){show('game');resize();sWhistle(0.45,1);}else renderRoom();
@@ -1253,7 +1354,7 @@ function clientFrame(){
     G.clock=Number(g.c)||0;G.golden=!!g.gd;G.paused=!!g.pa;
     if(Array.isArray(g.pg))G.players.forEach((p,i)=>{const v=g.pg[i];if(Array.isArray(v)){p.g=Math.max(0,Number(v[0])||0);p.a=Math.max(0,Number(v[1])||0);}});
     if(G.ks>=0&&g.ks>G.ks)sKick(1);G.ks=g.ks;
-    if(G.gs>=0&&g.gs>G.gs){const t=g.lg;startCel(G.players[Number(g.gi)],t);goalBanner(G.myTeam<0||t===G.myTeam?'GOL!':'GOL YEDİK',Number(g.gi),Number(g.ai));sCrowd();}
+    if(G.gs>=0&&g.gs>G.gs){const t=g.lg;startCel(G.players[Number(g.gi)],t);goalBanner(G.myTeam<0||t===G.myTeam?'GOL!':'GOL YEDİK',Number(g.gi),Number(g.ai));sCrowd();if(Array.isArray(g.sc))G.score=[Number(g.sc[0])||0,Number(g.sc[1])||0];repGoal(t,Number(g.gi),Number(g.ai),-1);}
     if(g.st==='play'||g.st==='over')$('banner').classList.remove('on');
     G.gs=g.gs;
     if(g.st==='over'&&!G.ended){G.ended=true;G.state='over';showEnd();}
@@ -1271,7 +1372,7 @@ function showEnd(){
   const [a,c]=G.score,my=G.myTeam;
   $('endScore').textContent=`${a} – ${c}`;$('endLbl').textContent=`${G.kits[0].abbr} · ${G.kits[1].abbr}`;
   $('endMsg').textContent=my<0?(a===c?'Berabere.':(a>c?G.kits[0].name:G.kits[1].name)+' kazandı.'):((my===0?a>c:c>a)?'Kazandınız!':a===c?'Berabere.':'Kaybettiniz. Rövanş isteyin.');
-  $('againBtn').textContent='Odaya dön';$('endMenu').textContent='Odadan çık';renderEndStats();$('endOv').hidden=false;
+  $('againBtn').textContent='Odaya dön';$('endMenu').textContent='Odadan çık';renderEndStats();renderEndGoals();$('endOv').hidden=false;
   recordMyMatch();adAfterMatch();
   const lc=NET.isHost?NET.cfg:(hostPeerOf(NET.room)||{presence:{}}).presence.cfg;
   if(lc&&lc.league&&my>=0)DB.leagueRpc('report_league_result',{p_match:lc.league,p_home:a,p_away:c}).then(()=>{$('endMsg').textContent+=' Lig skoru kaydedildi, rakip kaptanın onayı bekleniyor.';}).catch(()=>{});

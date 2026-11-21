@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=0f8f287">
+<link rel="stylesheet" href="style.css?v=1e3ea25">
 </head>
 <body>
 
@@ -263,7 +263,8 @@
   <button id="kickBtn" class="touch-only" aria-label="Şut">ŞUT</button>
   <div class="overlay rotate" id="rotate"><div class="panel"><h2 style="justify-content:center">Telefonu yan çevir</h2><p class="note">Saha yatay ekranda daha iyi görünür.</p><button class="ghost" id="rotateOk" style="justify-content:center">Böyle devam et</button></div></div>
   <div class="overlay" id="pauseOv" hidden><div class="panel"><h2 style="justify-content:center">Duraklatıldı</h2><button class="big" id="resumeBtn">Devam</button><button class="ghost" id="quitBtn" style="justify-content:center">Maçı bırak</button></div></div>
-  <div class="overlay" id="endOv" hidden><div class="panel"><div class="lbl" style="justify-content:center" id="endLbl">Maç sonu</div><div class="score" id="endScore"></div><div id="endMsg" class="note"></div><div id="endStats" class="endstats"></div><button class="big" id="againBtn">Rövanş</button><button class="ghost" id="endMenu" style="justify-content:center">Menü</button></div></div>
+  <div class="overlay" id="endOv" hidden><div class="panel"><div class="lbl" style="justify-content:center" id="endLbl">Maç sonu</div><div class="score" id="endScore"></div><div id="endMsg" class="note"></div><div id="endStats" class="endstats"></div><div id="endGoals" class="endgoals" hidden></div><button class="big" id="againBtn">Rövanş</button><button class="ghost" id="endMenu" style="justify-content:center">Menü</button></div></div>
+  <div class="overlay" id="repOv" hidden><div class="panel reppanel"><div class="replbl" id="repLbl"></div><canvas id="repCv"></canvas><div class="repctl"><button class="chip" id="repPrev" aria-label="Önceki gol">◀◀</button><button class="chip" id="repPlay" aria-label="Oynat/durdur">❚❚</button><button class="chip" id="repNext" aria-label="Sonraki gol">▶▶</button><button class="chip" id="repSpeed">1x</button><button class="chip" id="repZoom" aria-pressed="false">Yakın</button><button class="chip" id="repSave">Videoyu indir</button><button class="chip" id="repClose">Kapat</button></div><p class="note" id="repMsg"></p></div></div>
 </section>
 
 <div class="overlay statov" id="iosInstall" hidden><div class="panel">
@@ -278,6 +279,6 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=0f8f287"></script>
+<script type="module" src="app.js?v=1e3ea25"></script>
 </body>
 </html>
