@@ -4,7 +4,7 @@ import { CFG } from './config.js';
 const COLORS=['#d63a2a','#2a62d6','#f2c230','#1f9d55','#ffffff','#111111','#ff7a1a','#7b3fd1','#18b6c9','#e64a8f','#7a1f2b','#0e2a5c'];
 const NAME_COLORS=['#ffffff','#f2c230','#ff6b5a','#5ab8ff','#6bf28a','#d38bff','#ff9a3d','#7ff4ff'];
 const PATTERNS=[['solid','Düz'],['stripes','Çizgili'],['half','Yarım'],['hoop','Bant'],['sash','Kuşak']];
-const DEF={name:'',avatar:'10',nameColor:'#ffffff',team:'Antrenman',abbr:'SEN',p:'#d63a2a',s:'#ffffff',pat:'solid',size:1,diff:1,time:180,skin:'classic',ambOn:true,amb:60,cel:'none'};
+const DEF={name:'',avatar:'10',nameColor:'#ffffff',team:'Antrenman',abbr:'SEN',p:'#d63a2a',s:'#ffffff',pat:'solid',size:1,diff:1,time:180,skin:'classic',ambOn:true,amb:60,cel:'none',cam:1};
 const SLOT=(new URLSearchParams(location.search).get('u')||'').replace(/[^a-z0-9]/gi,'').slice(0,8);
 let prof={...DEF};
 try{const s=JSON.parse(localStorage.getItem('uzk-profile'+SLOT)||'null'); if(s) prof={...DEF,...s};}catch(e){}
@@ -446,10 +446,55 @@ const SKIN_IMG={sakura:{src:'assets/pitch-sakura.webp',L:400/2576,R:2173/2576,T:
 SKIN_IMG.drizzle=SKIN_IMG.rain;
 // HD görseller yalnızca o saha seçilince indirilir
 function skinImg(k){const SI=SKIN_IMG[k];if(!SI)return null;if(!SI.img){const im=new Image();im.decoding='async';im.src=SI.src;SI.img=im;}return SI.img;}
+// ---------- Kamera (1-7 tuşları / telefonda kamera düğmesi) ----------
+const CAMS={1:'Tüm saha',2:'Top takibi',3:'Oyuncu takibi',4:'Yakın plan',5:'Akıllı kamera',6:'Yayın kamerası',7:'Sinematik'};
+const CAM={x:0,y:0,z:1,vx:0,vy:0,mode:0};
+const camMode=()=>CAMS[prof.cam]?Number(prof.cam):1;
+function camUpdate(){
+  if(!G){CAM.x=CAM.y=0;CAM.z=1;return;}
+  const m=camMode(),b=G.ball,me=G.players.find(p=>p.local&&p.team>=0)||null,tgt=me||b;
+  const bvx=(b.x-(CAM.bx??b.x)),bvy=(b.y-(CAM.by??b.y));CAM.bx=b.x;CAM.by=b.y;
+  CAM.vx=CAM.vx*0.9+bvx*0.1;CAM.vy=CAM.vy*0.9+bvy*0.1; // topun yumuşatılmış hızı
+  let tx=0,ty=0,tz=1,ease=0.14;
+  if(m===2){tx=b.x;ty=b.y;tz=1.55;}
+  else if(m===3){tx=tgt.x;ty=tgt.y;tz=1.55;}
+  else if(m===4){tx=tgt.x;ty=tgt.y;tz=2.2;}
+  else if(m===5){ // oyuncu ve topu birlikte kadraja alır, aralarındaki mesafeye göre yakınlaşır
+    tx=tgt.x*0.45+b.x*0.55;ty=tgt.y*0.45+b.y*0.55;
+    const dx=Math.abs(tgt.x-b.x)+140,dy=Math.abs(tgt.y-b.y)+110;
+    tz=Math.max(1,Math.min(2,Math.min(VW/dx,VH/dy)));ease=0.08;}
+  else if(m===6){ // yayın: yatay kaydırma, topun gidişine göre önden bakar
+    tx=b.x+CAM.vx*26;ty=b.y*0.3;tz=1.4;ease=0.06;}
+  else if(m===7){ // sinematik: kaleye yaklaştıkça yakınlaşır, orta sahada uzaklaşır
+    const gd=Math.max(0,1-Math.abs(FW-Math.abs(b.x))/(FW*0.55));
+    tx=b.x+CAM.vx*18+Math.sign(b.x)*gd*40;ty=b.y*(0.5+0.4*gd);tz=1.2+0.85*gd*gd;ease=0.045;}
+  if(CAM.mode!==m){CAM.mode=m;}
+  CAM.z+=(tz-CAM.z)*Math.min(1,ease*0.9);
+  // görüş alanını sahanın dışına taşırma
+  const hw=innerWidth/(2*scale*CAM.z),hh=(innerHeight-24)/(2*scale*CAM.z);
+  const lx=Math.max(0,VW+30-hw),ly=Math.max(0,VH+30-hh);
+  tx=Math.max(-lx,Math.min(lx,tx));ty=Math.max(-ly,Math.min(ly,ty));
+  CAM.x+=(tx-CAM.x)*ease;CAM.y+=(ty-CAM.y)*ease;
+}
+// yakın kameralarda kendi oyuncun ekran dışındaysa kenarda yönünü gösteren ok
+function drawOffMe(){
+  const me=G&&G.players.find(p=>p.local&&p.team>=0);if(!me||CAM.z<1.05)return;
+  const z=scale*dpr*CAM.z,sx=cv.width/2+(me.x-CAM.x)*z,sy=cv.height/2+16*dpr+(me.y-CAM.y)*z,m=34*dpr;
+  if(sx>m&&sx<cv.width-m&&sy>m+40*dpr&&sy<cv.height-m)return;
+  const cx=Math.max(m,Math.min(cv.width-m,sx)),cy=Math.max(m+40*dpr,Math.min(cv.height-m,sy)),a=Math.atan2(sy-cy,sx-cx);
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.translate(cx,cy);
+  const kit=G.kits[me.team]||{p:'#fff'};ctx.fillStyle=kit.p;ctx.strokeStyle='#fff';ctx.lineWidth=2*dpr;
+  ctx.beginPath();ctx.arc(0,0,11*dpr,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.rotate(a);ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(19*dpr,0);ctx.lineTo(12*dpr,-6*dpr);ctx.lineTo(12*dpr,6*dpr);ctx.fill();
+  ctx.restore();
+}
+function setCam(m){if(!CAMS[m])return;prof.cam=m;save();const t=$('camToast');if(t){t.textContent=m+' · '+CAMS[m];t.classList.remove('on');void t.offsetWidth;t.classList.add('on');}const bt=$('camBtn');if(bt)bt.textContent='🎥 '+m;}
+addEventListener('keydown',e=>{if(isTyping(e)||!G||$('game').hidden)return;const m=/^(Digit|Numpad)([1-7])$/.exec(e.code);if(m){e.preventDefault();setCam(Number(m[2]));}});
 function drawField(){
   const sk=curSkin(),P=SKIN_PAL[sk];
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=P.bg;ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.setTransform(scale*dpr,0,0,scale*dpr,cv.width/2,cv.height/2+16*dpr);
+  camUpdate();const z=scale*dpr*CAM.z;
+  ctx.setTransform(z,0,0,z,cv.width/2-CAM.x*z,cv.height/2+16*dpr-CAM.y*z);
   const SI=SKIN_IMG[sk];
   const SIm=SI&&skinImg(sk);
   if(SIm&&SIm.complete&&SIm.naturalWidth){const w=2*FW/(SI.R-SI.L),h=2*FH/(SI.B-SI.T);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(SIm,-FW-SI.L*w,-FH-SI.T*h,w,h);return P.line;}
@@ -604,6 +649,7 @@ function draw(){
   const b=G.ball;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke();
   drawWeather();
   drawCel('over');
+  drawOffMe();
   drawBubbles();
   if(G.paused&&G.net){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#f2c230';ctx.font='800 42px "Saira Condensed",sans-serif';ctx.textAlign='center';ctx.fillText('DURAKLATILDI',innerWidth/2,innerHeight/2);}
   // joystick
@@ -650,6 +696,7 @@ $('ambOn').onchange=e=>{prof.ambOn=e.target.checked;save();syncAmbUI();ambTick()
 $('ambVol').onchange=e=>e.target.blur();
 $('ambVol').oninput=e=>{prof.amb=Number(e.target.value);if(prof.amb>0&&prof.ambOn===false)prof.ambOn=true;save();syncAmbUI();ambTick();};
 setInterval(()=>{const b=$('ambBtn');if(b&&b.hidden===hasAmb())syncAmbUI();if(!hasAmb())$('ambPanel').hidden=true;},500);
+$('camBtn').onclick=()=>setCam(camMode()%7+1);$('camBtn').textContent='🎥 '+camMode();
 $('fsBtn').onclick=async()=>{try{if(!document.fullscreenElement){await document.documentElement.requestFullscreen();try{await screen.orientation.lock('landscape');}catch(e){}}else await document.exitFullscreen();}catch(e){$('fsBtn').textContent='Tam ekran yok';}};
 
 

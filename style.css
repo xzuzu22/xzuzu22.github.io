@@ -256,3 +256,7 @@ html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adju
 #hostPanel .toggle{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
 #hostPanel .toggle small{flex-basis:100%;margin-left:28px}
 .kits2 .lbl{margin-bottom:10px}
+#camBtn{left:calc(max(10px,env(safe-area-inset-left,0px)) + 92px)}
+.camtoast{position:absolute;top:calc(env(safe-area-inset-top,0px) + 54px);left:50%;transform:translateX(-50%);background:rgba(8,18,12,.85);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:700 13px var(--f-body);color:var(--chalk);opacity:0;pointer-events:none;white-space:nowrap}
+.camtoast.on{animation:camt 1.6s ease forwards}
+@keyframes camt{0%{opacity:0;transform:translate(-50%,-6px)}12%{opacity:1;transform:translate(-50%,0)}75%{opacity:1}100%{opacity:0}}
