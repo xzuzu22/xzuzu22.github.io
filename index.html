@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=b2732b7">
+<link rel="stylesheet" href="style.css?v=ede77d4">
 </head>
 <body>
 
@@ -146,6 +146,7 @@
           <div class="row" id="trailChips"></div>
           <p class="note" style="margin-top:-4px">Koşarken arkanda bıraktığın iz; odadaki herkes görür.</p>
           <p class="note" id="saveState"></p>
+          <button class="chip" id="adminBtn" hidden onclick="location.hash='#admin'">🛡️ Yönetici paneli</button>
         </div>
         <div class="panel">
           <h2>Hesap</h2>
@@ -300,8 +301,9 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=b2732b7"></script>
+<script type="module" src="app.js?v=ede77d4"></script>
 <div class="invtoast" id="invToast" hidden></div>
 <div class="afktoast" id="afkToast" hidden></div>
+<div class="overlay adminov" id="adminOv" hidden><div class="panel adminpanel"><div class="row" style="justify-content:space-between;align-items:center"><b class="admtitle">Yönetici paneli</b><button class="chip" id="adminClose">Kapat</button></div><div id="adminBody"></div></div></div>
 </body>
 </html>

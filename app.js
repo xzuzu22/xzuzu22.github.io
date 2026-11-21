@@ -552,7 +552,7 @@ function renderHud(){
   if(G.drill){$('hud').innerHTML=drillHud();return;}
   if(G.training){$('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>ANTRENMAN · GOL ${G.score[0]}<span class="clock">${G.score[1]?'KENDİ KALENE '+G.score[1]:'∞'}</span>`;return;}
   const sn=G.net?specCount():0;
-  $('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>${esc(k[0].abbr||'SEN')} ${G.score[0]} – ${G.score[1]} ${esc(k[1].abbr)}<span class="kit" style="background:${k[1].p}"></span><span class="clock">${G.golden?'ALTIN GOL':m+':'+String(s).padStart(2,'0')}</span>${sn?`<span class="specn" title="İzleyici">👁 ${sn}</span>`:''}`;
+  $('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>${esc(k[0].abbr||'SEN')} ${G.score[0]} – ${G.score[1]} ${esc(k[1].abbr)}<span class="kit" style="background:${k[1].p}"></span><span class="clock">${G.golden?'ALTIN GOL':m+':'+String(s).padStart(2,'0')}</span>${sn?`<span class="specn" title="İzleyici">👁 ${sn}</span>`:''}${G.net&&G.net.role==='client'&&NET.ping?`<span class="ping ${pingCls(NET.ping)}" title="Oda sahibine gecikme">${NET.ping} ms</span>`:''}`;
   $('specBadge').hidden=!(G.net&&G.myTeam<0);
 }
 
@@ -1095,6 +1095,19 @@ const DB={
     if(!LIVE){const d=MOCKDB.get();const ms=(d.matches||[]).filter(m=>m.user_id===u).reverse();
       return {played:ms.length,goals:ms.reduce((s,m)=>s+m.goals,0),assists:ms.reduce((s,m)=>s+m.assists,0),won:ms.filter(m=>m.result==='W').length,rating:((d.ratings||{})[u]||{}).rating,rgames:((d.ratings||{})[u]||{}).games,last:ms.slice(0,10)};}
     const {data,error}=await sb.rpc('player_summary',{p_user:u});if(error)throw error;return data;},
+  async adminRpc(fn,args){
+    if(!LIVE){const d=MOCKDB.get();d.admins=d.admins||[];
+      if(fn==='is_admin')return d.admins.includes(uid);
+      if(fn==='claim_admin'){if(args.p_code==='UZK-TEST'){d.admins.push(uid);MOCKDB.put(d);return true;}return false;}
+      if(!d.admins.includes(uid))throw new Error('not admin');
+      const nick=id=>(d.profiles[id]||{}).nick||'?';
+      if(fn==='admin_overview'){const g={};(d.reports||[]).forEach(r=>{const x=g[r.target]=g[r.target]||{id:r.target,nick:nick(r.target),total:0,rs:new Set(),reasons:new Set(),contexts:[],last_at:new Date(r.at).toISOString()};x.total++;x.rs.add(r.reporter);x.reasons.add(r.reason);if(r.ctx)x.contexts.push(r.ctx);});
+        return {reports:Object.values(g).map(x=>({...x,reporters:x.rs.size,reasons:[...x.reasons]})),leavers:(d.mockLeavers||[]),bans:(d.mockBans||[]),stats:{players:Object.keys(d.profiles).length,new24:2,matches24:(d.matches||[]).length,teams:Object.keys(d.teams).length}};}
+      if(fn==='admin_search')return Object.entries(d.profiles).filter(([,p])=>(p.nick||'').toLowerCase().includes(String(args.p_q).toLowerCase())).map(([id,p])=>({id,nick:p.nick,avatar:p.avatar,rating:((d.ratings||{})[id]||{}).rating,reports:(d.reports||[]).filter(r=>r.target===id).length,leaves:0,banned_until:null}));
+      if(fn==='admin_ban'){d.mockBans=(d.mockBans||[]).filter(b=>b.id!==args.p_user);d.mockBans.push({id:args.p_user,nick:nick(args.p_user),until:new Date(Date.now()+args.p_minutes*6e4).toISOString(),reason:args.p_reason});MOCKDB.put(d);return;}
+      if(fn==='admin_unban'){d.mockBans=(d.mockBans||[]).filter(b=>b.id!==args.p_user);MOCKDB.put(d);return;}
+      if(fn==='admin_dismiss'){d.reports=(d.reports||[]).filter(r=>r.target!==args.p_user);MOCKDB.put(d);return;}return;}
+    const {data,error}=await sb.rpc(fn,args||{});if(error)throw error;return data;},
   async friends(){
     if(!LIVE){const d=MOCKDB.get();return (d.friends||[]).filter(f=>f.a===uid||f.b===uid).map(f=>{const id=f.a===uid?f.b:f.a;const p=d.profiles[id]||{};return {id,status:f.status,incoming:f.status==='pending'&&f.requester!==uid,nick:p.nick,avatar:p.avatar,name_color:p.name_color};});}
     const {data,error}=await sb.rpc('my_friends');if(error)throw error;return data||[];},
@@ -1315,7 +1328,7 @@ async function netConnect(){
 }
 function pushLobby(){
   if(!NET.lobby)return;
-  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR()}:null;
+  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:avgPing()}:null;
   NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,sr:bestTier(),chat:NET.lobbyChat,host,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
 }
 function renderNetState(msg){
@@ -1341,6 +1354,7 @@ function renderOnline(){
   rooms.forEach(r=>{const b=document.createElement('button');b.className='roomcard';
     const full=(r.n||0)>=(r.max||0);
     b.innerHTML=`<b></b><span class="cnt">${Number(r.n)||0}/${Number(r.max)||0}</span><span class="meta"><span class="tag">${esc(MAPS[r.map]?MAPS[r.map].name:'?')}</span>${r.ph==='game'?'<span class="tag live">Maçta</span>':'<span class="tag">Lobide</span>'}<span class="hn"></span></span>`;
+    if(Number(r.lq)>0){const pe=pingEl(Number(r.lq));pe.title='Bu odadaki oyuncuların ortalama gecikmesi';b.querySelector('.meta').appendChild(pe);}
     b.querySelector('b').textContent=cleanStr(r.name,28)||'Oda';b.querySelector('.hn').textContent='Kuran: '+cleanStr(r.hostNick,14);
     if(full&&r.ph!=='game'){b.disabled=true;b.style.opacity=.55;}
     b.onclick=()=>{NET.watch=r.ph==='game';enterRoom(r.code);};
@@ -1606,6 +1620,8 @@ setInterval(()=>{ // oda sahibi gitti mi?
 // ---------- Gecikme ölçümü ve oda sahibi devri ----------
 setInterval(()=>{if(!NET.room||NET.isHost)return;const h=hostPeerOf(NET.room);const dc=h&&dcOpen(h.peer);if(dc){try{dc.send(JSON.stringify({pi:performance.now()}));}catch(e){}}else if(h)NET.ping=0;},2000);
 setInterval(()=>{if(NET.room&&!NET.isHost&&NET.ping)pushRoom();if(NET.room&&NET.isHost)pushLobby();},6000);
+const pingCls=ms=>ms<80?'good':ms<160?'ok':'bad';
+function pingEl(ms){const e=document.createElement('span');e.className='ping '+pingCls(ms);e.textContent=ms+' ms';e.title='Gecikme (ping)';return e;}
 function avgPing(){if(!NET.room)return 0;const a=named(NET.room.peers()).filter(p=>!p.presence.H&&p.presence.pn>0).map(p=>p.presence.pn);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;}
 function rememberHost(h){const pr=h.presence;NET.lastHost={peer:h.peer,cfg:pr.cfg,teams:pr.teams||{},bots:Array.isArray(pr.bots)?pr.bots:[],phase:pr.phase,ro:pr.ro};}
 function successorIsMe(){
@@ -1668,6 +1684,44 @@ function renderRejoin(){const box=$('rejoinBox');if(!box)return;const m=getLastM
   const x=document.createElement('button');x.className='chip';x.textContent='Dönmeyeceğim';x.onclick=async()=>{clearLastMatch();try{await DB.matchDone('leave');}catch(e){}refreshAfterLeave();$('netMsg').textContent='Maçı bıraktın: −20 beceri puanı ve 1 dakika maç bulma cezası.';};
   box.append(t,b,x);}
 
+// ---------- Yönetici paneli ----------
+let IS_ADMIN=false;
+const REASON_TR={kufur:'Küfür',hile:'Hile',troll:'Troll',isim:'İsim',diger:'Diğer'};
+const fmtDT=t=>t?new Date(t).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+async function openAdmin(){
+  const ov=$('adminOv');ov.hidden=false;const B=$('adminBody');B.innerHTML='<p class="note">Yükleniyor…</p>';
+  try{IS_ADMIN=await DB.adminRpc('is_admin');}catch(e){IS_ADMIN=false;}
+  if(!IS_ADMIN){B.innerHTML='<h2>Yönetici girişi</h2><p class="note">Sana verilen yönetici kodunu yaz. Kod en fazla 3 cihazda kullanılabilir; girdiğin hesap kalıcı olarak yönetici olur.</p><form class="row" id="admForm"><input type="text" id="admCode" placeholder="UZK-…" autocomplete="off"><button class="chip go" type="submit">Giriş</button></form><p class="err" id="admErr"></p>';
+    $('admForm').onsubmit=async e=>{e.preventDefault();try{const ok=await DB.adminRpc('claim_admin',{p_code:$('admCode').value.trim()});if(ok)openAdmin();else $('admErr').textContent='Kod geçersiz ya da kullanım hakkı bitmiş.';}catch(err){$('admErr').textContent=errText(err);}};return;}
+  let d;try{d=await DB.adminRpc('admin_overview');}catch(e){B.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent=errText(e);B.appendChild(p);return;}
+  B.innerHTML='';const H=t=>{const h=document.createElement('h2');h.textContent=t;B.appendChild(h);};
+  const st=document.createElement('div');st.className='stattiles';[['Oyuncu',d.stats.players],['Son 24 saat yeni',d.stats.new24],['Son 24 saat maç',d.stats.matches24],['Takım',d.stats.teams]].forEach(([l,v])=>{const t=document.createElement('div');const b=document.createElement('b');b.textContent=v;const s2=document.createElement('span');s2.textContent=l;t.append(b,s2);st.appendChild(t);});B.appendChild(st);
+  const act=(id,nick)=>{const w=document.createElement('div');w.className='admact';
+    [['1 saat',60],['1 gün',1440],['7 gün',10080],['Kalıcı',5256000]].forEach(([l,m])=>{const b=document.createElement('button');b.className='chip danger';b.textContent='Uzaklaştır: '+l;b.onclick=async()=>{const r=prompt(`${nick} — uzaklaştırma sebebi (oyuncuya gösterilir):`,'Kurallara aykırı davranış');if(r===null)return;try{await DB.adminRpc('admin_ban',{p_user:id,p_minutes:m,p_reason:r});openAdmin();}catch(e){alert(errText(e));}};w.appendChild(b);});
+    return w;};
+  H('Şikâyetler (son 14 gün)');
+  if(!d.reports.length){const p=document.createElement('p');p.className='note';p.textContent='Şikâyet yok.';B.appendChild(p);}
+  d.reports.forEach(r=>{const c=document.createElement('div');c.className='admcard'+(r.reporters>=3?' hot':'');
+    const h=document.createElement('div');h.className='admh';const n=document.createElement('b');n.textContent=r.nick||'?';const m=document.createElement('span');m.textContent=`${r.reporters} kişi · ${r.total} şikâyet · ${(r.reasons||[]).map(x=>REASON_TR[x]||x).join(', ')} · ${fmtDT(r.last_at)}`;h.append(n,m);c.appendChild(h);
+    (r.contexts||[]).forEach(t=>{const q=document.createElement('div');q.className='admq';q.textContent='“'+t+'”';c.appendChild(q);});
+    const a=act(r.id,r.nick);const ds=document.createElement('button');ds.className='chip';ds.textContent='Şikâyetleri temizle';ds.onclick=async()=>{await DB.adminRpc('admin_dismiss',{p_user:r.id}).catch(e=>alert(errText(e)));openAdmin();};a.appendChild(ds);c.appendChild(a);B.appendChild(c);});
+  H('Sık maç terk edenler (son 7 gün, 2+)');
+  if(!d.leavers.length){const p=document.createElement('p');p.className='note';p.textContent='Yok.';B.appendChild(p);}
+  d.leavers.forEach(r=>{const c=document.createElement('div');c.className='admcard';const h=document.createElement('div');h.className='admh';const n=document.createElement('b');n.textContent=r.nick||'?';const m=document.createElement('span');m.textContent=`7 günde ${r.week} terk · son 24 saatte ${r.day}`;h.append(n,m);c.append(h,act(r.id,r.nick));B.appendChild(c);});
+  H('Aktif uzaklaştırmalar');
+  if(!d.bans.length){const p=document.createElement('p');p.className='note';p.textContent='Yok.';B.appendChild(p);}
+  d.bans.forEach(r=>{const c=document.createElement('div');c.className='admcard';const h=document.createElement('div');h.className='admh';const n=document.createElement('b');n.textContent=r.nick||'?';const m=document.createElement('span');m.textContent=`${new Date(r.until).getFullYear()>2100?'kalıcı':fmtDT(r.until)+"'e kadar"} · ${r.reason||''}`;h.append(n,m);
+    const u=document.createElement('button');u.className='chip';u.textContent='Uzaklaştırmayı kaldır';u.onclick=async()=>{await DB.adminRpc('admin_unban',{p_user:r.id}).catch(e=>alert(errText(e)));openAdmin();};const w=document.createElement('div');w.className='admact';w.appendChild(u);c.append(h,w);B.appendChild(c);});
+  H('Oyuncu ara');
+  const f=document.createElement('form');f.className='row';f.innerHTML='<input type="text" placeholder="Takma ad" autocomplete="off"><button class="chip go" type="submit">Ara</button>';const res=document.createElement('div');B.append(f,res);
+  f.onsubmit=async e=>{e.preventDefault();res.innerHTML='';let L=[];try{L=await DB.adminRpc('admin_search',{p_q:f.querySelector('input').value.trim()});}catch(err){res.textContent=errText(err);return;}
+    if(!L.length){res.innerHTML='<p class="note">Bulunamadı.</p>';}
+    L.forEach(r=>{const c=document.createElement('div');c.className='admcard';const h=document.createElement('div');h.className='admh';const n=document.createElement('b');n.textContent=`${r.nick} (${r.avatar||'?'})`;const m=document.createElement('span');m.textContent=`puan ${r.rating??'—'} · ${r.reports} şikâyet · ${r.leaves} terk${r.banned_until?' · uzaklaştırılmış':''}`;h.append(n,m);c.append(h,act(r.id,r.nick));res.appendChild(c);});};
+}
+$('adminClose').onclick=()=>{$('adminOv').hidden=true;if(location.hash==='#admin')history.replaceState(null,'',location.pathname+location.search);};
+function checkAdminRoute(){if(location.hash==='#admin'&&!$('main').hidden)openAdmin();}
+addEventListener('hashchange',checkAdminRoute);
+
 // ---------- Oda ekranı ----------
 function specCount(){try{if(!NET.room)return 0;const v=roomView();if(!v)return 0;return named(NET.room.peers()).filter(p=>(v.teams[p.peer]||'spec')==='spec').length;}catch(e){return 0;}}
 function roomView(){
@@ -1701,6 +1755,7 @@ function renderRoom(){
         if(it.p.sameTab)c.classList.add('me');
         const link=NET.isHost&&!it.p.sameTab?(dcOpen(it.p.peer)?' ·P2P':' ·yedek'):'';
         st.textContent=(v.phase==='lobby'&&pr.ready?'hazır':'')+link;if(pr.ready)st.classList.add('ok');
+        if(it.p.peer!==v.host){const pm=it.p.sameTab?(NET.ping||0):(Number(pr.pn)||0);if(pm)st.prepend(pingEl(pm));}
         if(NET.isHost)c.onclick=()=>openPlayerMenu(it.p.peer,cleanStr(pr.nick,14),pr.u,pr.tg);else{c.style.cursor='pointer';c.onclick=()=>openStats(pr.u,cleanStr(pr.nick,14),pr.tg);}}
       c.append(av,nm,st);list.appendChild(c);});
     const jb=col.querySelector('.join');const myT=v.teams[v.me]||'spec';
@@ -2167,10 +2222,12 @@ $('gateForm').addEventListener('submit',async e=>{e.preventDefault();
   prof.avatar=jn;
   prof.name=n;save();DB.saveProfile().catch(()=>{});enterMain();});
 function enterMain(){
-  DB.restrictions().then(r=>{Object.assign(MOD,r||{});
+  const chk=()=>DB.restrictions().then(r=>{Object.assign(MOD,r||{});
     if(MOD.banned_until&&new Date(MOD.banned_until)>new Date()){leaveRoom(true);try{NET.lobby&&NET.lobby.leave();}catch(e){}NET.lobby=null;show('gate');$('gateForm').hidden=true;
       $('gateMsg').textContent='Hesabın '+new Date(MOD.banned_until).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' tarihine kadar oyundan uzaklaştırıldı.'+(MOD.ban_reason?' Sebep: '+MOD.ban_reason:'');}}).catch(()=>{});
+  chk();setInterval(chk,120000);
   loadFriends(true);setInterval(()=>loadFriends(),60000);
+  setTimeout(checkAdminRoute,300);DB.adminRpc('is_admin').then(v=>{IS_ADMIN=!!v;const b=$('adminBtn');if(b)b.hidden=!IS_ADMIN;}).catch(()=>{});
   DB.claimRewards().then(r=>{MYREW=Array.isArray(r)?r.filter(x=>cleanTier(x.tier)):[];pushLobby();if(NET.room)pushRoom();}).catch(()=>{});
   DB.myRating().then(r=>{MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};renderMe();pushLobby();}).catch(()=>{});
   renderMe();showMain('rooms');netConnect();DB.myTeam().then(m=>{myTeamCache=m;renderMe();}).catch(()=>{});}
