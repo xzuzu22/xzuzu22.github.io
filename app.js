@@ -20,7 +20,7 @@ function show(id){screens.forEach(s=>$(s).hidden=s!==id);
   if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('gchat').hidden=!on;if(!on)closeChat();}}
 function showTab(t){curTab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   ['rooms','profile','team','league'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  if(t==='rooms')renderOnline();if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
+  if(t==='rooms'){renderOnline();renderDrills();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
 function showMain(t){if(t)curTab=t;show('main');}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 $('meChip').onclick=()=>showTab('profile');
@@ -171,6 +171,86 @@ function startMatch(opt={}){
   last=performance.now();acc=0;
   if(G.net&&G.net.role==='host')ensureBgTicker();
 }
+// ---------- Antrenman görevleri ----------
+const DRILLS={
+  shoot:{name:'Şut Ustası',desc:'10 top, her biri için 6 saniye. Kaleye ne kadar çok gol atarsan.',unit:'gol',medals:[4,7,9],higher:true},
+  slalom:{name:'Slalom',desc:'Topu sırayla 6 kapıdan geçir, sonra gole çevir. Ne kadar hızlı o kadar iyi.',unit:'sn',medals:[75,50,35],higher:false},
+  keeper:{name:'Kaleciyi Geç',desc:'Bot kaleciye karşı 10 deneme, her biri 7 saniye.',unit:'gol',medals:[3,5,7],higher:true},
+};
+const MEDALS=['Bronz','Gümüş','Altın'],MEDAL_C=['#c98a55','#c9d1d9','#f2c230'];
+function drillMedal(kind,v){const D=DRILLS[kind];let m=-1;D.medals.forEach((t,i)=>{if(D.higher?v>=t:v<=t)m=i;});return m;}
+function startDrill(kind){
+  const D=DRILLS[kind];if(!D)return;
+  const roster=[{pid:'me',team:0,human:true,local:true,avatar:prof.avatar,name:prof.name,nameColor:prof.nameColor,tag:myTag(),cel:prof.cel}];
+  if(kind==='keeper')roster.push({pid:'gk',team:1,human:false,avatar:'1',name:'Kaleci',nameColor:'#ffffff'});
+  const uk=userKit();startMatch({roster,map:'classic',kits:[{...uk,name:prof.team,abbr:prof.abbr},{name:'Bot',abbr:'BOT',p:'#2a62d6',s:'#ffffff',pat:'solid'}],time:600,goals:0,skin:prof.skin,diff:prof.diff});
+  G.training=true;G.drill={kind,n:0,score:0,t:0,att:0,gate:0,max:kind==='slalom'?1:10,limit:kind==='shoot'?360:kind==='keeper'?420:120*60,res:[]};
+  if(kind==='keeper'){const k=G.players[1];k.gk=true;k.role='gk';}
+  if(kind==='slalom'){const gs=[];for(let i=0;i<6;i++){const x=-FW*0.62+i*(FW*1.24/5),y=(i%2?1:-1)*FH*0.42;gs.push({x,y,h:46});}G.drill.gates=gs;}
+  drillNext(true);renderHud();
+}
+function drillNext(first){
+  const d=G.drill,b=G.ball,me=G.players[0];if(!first&&d.kind!=='slalom')d.att++;
+  if(d.kind!=='slalom'&&d.att>=d.max){drillEnd();return;}
+  d.t=0;b.vx=b.vy=0;me.vx=me.vy=0;G.kickoff=false;G.t1=G.t2=null;
+  if(d.kind==='shoot'){b.x=FW*(0.1+Math.random()*0.5);b.y=(Math.random()*2-1)*FH*0.7;me.x=b.x-55;me.y=b.y+(Math.random()*2-1)*20;}
+  else if(d.kind==='keeper'){b.x=FW*0.35;b.y=(Math.random()*2-1)*FH*0.5;me.x=b.x-50;me.y=b.y;const k=G.players[1];k.x=FW-28;k.y=0;k.vx=k.vy=0;}
+  else{if(d.back){d.back=false;b.x=Math.sign(b.x||1)*(FW-80);b.y=0;return;}if(!first){drillEnd();return;}b.x=-FW*0.78;b.y=0;me.x=b.x-42;me.y=0;d.gate=0;}
+}
+function drillTick(){
+  const d=G.drill,b=G.ball;if(G.state!=='play')return;d.t++;
+  if(d.kind==='slalom'){
+    const g=d.gates[d.gate];
+    if(g&&Math.abs(b.y-g.y)<g.h&&((d.lx??b.x)<g.x)!==(b.x<g.x)){d.gate++;sKick(0.5);}
+    d.lx=b.x;
+    if(d.t>d.limit){d.score=0;drillEnd(true);return;}
+    if(d.t%15===0)renderHud();return;}
+  if(d.t>d.limit||(d.t>90&&Math.hypot(b.vx,b.vy)<0.05&&b.x<FW*0.05)){d.res.push(0);drillNext();renderHud();return;}
+  if(d.t%15===0)renderHud();
+}
+function drillGoal(team){
+  const d=G.drill;
+  if(d.kind==='slalom'){
+    if(team!==0||d.gate<d.gates.length){G.ball.vx=G.ball.vy=0;G.ball.x=Math.sign(G.ball.x)*(FW-30);goalBanner(d.gate<d.gates.length?`ÖNCE KAPILAR (${d.gate}/${d.gates.length})`:'YANLIŞ KALE',-1,-1);G.state='goal';G.stateT=50;d.back=true;return;}
+    d.score=Math.round(d.t/6)/10;sCrowd();goalBanner('BİTTİ! '+d.score.toFixed(1)+' sn',-1,-1);G.state='goal';G.stateT=70;return;}
+  if(team===0){d.score++;d.res.push(1);sCrowd();goalBanner('GOL!',-1,-1);}else{d.res.push(0);goalBanner('KENDİ KALENE',-1,-1);}
+  G.state='goal';G.stateT=55;renderHud();
+}
+function drillEnd(fail){
+  const d=G.drill,D=DRILLS[d.kind];G.state='over';$('banner').classList.remove('on');
+  const v=d.kind==='slalom'?(fail?999:d.score):d.score;const m=fail?-1:drillMedal(d.kind,v);
+  prof.drills=prof.drills||{};const old=prof.drills[d.kind];const better=!fail&&(!old||(D.higher?v>old.best:v<old.best));
+  if(better){prof.drills[d.kind]={best:v,medal:Math.max(m,old?old.medal:-1)};save();}
+  $('endScore').textContent=fail?'Süre doldu':(d.kind==='slalom'?v.toFixed(1)+' sn':v+' / '+d.max);$('endLbl').textContent='Antrenman · '+D.name;
+  $('endMsg').textContent=(m>=0?MEDALS[m]+' madalya! ':fail?'':'Madalya için biraz daha. ')+(better&&old?'Yeni rekor!':old?'Rekorun: '+(d.kind==='slalom'?old.best.toFixed(1)+' sn':old.best):'');
+  const box=$('endStats');box.innerHTML='';const md=document.createElement('div');md.className='medalrow';
+  D.medals.forEach((t,i)=>{const e=document.createElement('span');e.className='medal'+(m>=i?' on':'');e.style.setProperty('--mc',MEDAL_C[i]);e.textContent=MEDALS[i]+' · '+(d.kind==='slalom'?'≤'+t+' sn':t+'+');md.appendChild(e);});
+  box.appendChild(md);$('endGoals').hidden=true;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());
+  $('againBtn').textContent='Tekrar dene';$('endMenu').textContent='Menü';$('endOv').hidden=false;renderDrills();
+}
+function drillHud(){const d=G.drill,D=DRILLS[d.kind];
+  if(d.kind==='slalom')return `<span class="kit" style="background:${G.kits[0].p}"></span>${D.name.toUpperCase()} · KAPI ${Math.min(d.gate,d.gates.length)}/${d.gates.length}<span class="clock">${(d.t/60).toFixed(1)}</span>`;
+  return `<span class="kit" style="background:${G.kits[0].p}"></span>${D.name.toUpperCase()} · ${d.score} GOL · TOP ${Math.min(d.att+1,d.max)}/${d.max}<span class="clock">${Math.max(0,Math.ceil((d.limit-d.t)/60))}</span>`;}
+function drawDrill(){
+  const d=G.drill;
+  if(d.kind==='slalom'){d.gates.forEach((g,i)=>{const done=i<d.gate,next=i===d.gate;
+      ctx.strokeStyle=done?'rgba(127,224,170,.5)':next?'rgba(242,194,48,.9)':'rgba(255,255,255,.35)';ctx.lineWidth=next?4:2;ctx.setLineDash(next?[]:[6,6]);
+      ctx.beginPath();ctx.moveTo(g.x,g.y-g.h);ctx.lineTo(g.x,g.y+g.h);ctx.stroke();ctx.setLineDash([]);
+      for(const yy of[g.y-g.h,g.y+g.h]){ctx.fillStyle=done?'#2fbf71':next?'#f2c230':'#ff7a1a';ctx.beginPath();ctx.moveTo(g.x,yy-11);ctx.lineTo(g.x+8,yy+7);ctx.lineTo(g.x-8,yy+7);ctx.closePath();ctx.fill();}
+      ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='800 16px Inter,system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(i+1),g.x,g.y+(g.y<0?-g.h-24:g.h+24));});
+    if(d.gate>=d.gates.length){ctx.fillStyle='rgba(242,194,48,.18)';ctx.fillRect(FW,-GH,GD,2*GH);}
+    return;}
+  // hedef kale vurgusu + deneme noktaları
+  ctx.fillStyle='rgba(242,194,48,.14)';ctx.fillRect(FW,-GH,GD,2*GH);
+  const n=d.max,w=14;for(let i=0;i<n;i++){const x=-((n-1)*w)/2+i*w,y=-FH-18;ctx.fillStyle=i<d.res.length?(d.res[i]?'#2fbf71':'#e0483e'):i===d.res.length?'#f2c230':'rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();}
+  if(d.t<200&&d.kind!=='slalom'){const a=Math.max(0,1-d.t/200);ctx.fillStyle=`rgba(255,255,255,${0.6*a})`;ctx.font='700 14px Inter,system-ui,sans-serif';ctx.textAlign='center';ctx.fillText('Şut: Boşluk / X',G.ball.x,G.ball.y-34);}
+}
+function renderDrills(){const box=$('drillList');if(!box)return;box.innerHTML='';const st=prof.drills||{};
+  for(const [k,D] of Object.entries(DRILLS)){const b=document.createElement('button');b.className='drill';const r=st[k];
+    const m=r?r.medal:-1;b.style.setProperty('--mc',m>=0?MEDAL_C[m]:'rgba(255,255,255,.18)');
+    b.innerHTML='<i></i><b></b><span></span><em></em>';b.querySelector('i').textContent=m>=0?'★':'☆';b.querySelector('b').textContent=D.name;b.querySelector('span').textContent=D.desc;
+    b.querySelector('em').textContent=r?(m>=0?MEDALS[m]+' · ':'')+'Rekor: '+(k==='slalom'?r.best.toFixed(1)+' sn':r.best+' gol'):'Henüz denemedin';
+    b.onclick=()=>startDrill(k);box.appendChild(b);}}
 function resetPositions(){
   const f=formation(G.size);
   G.players.forEach(p=>{const s=p.team===0?1:-1;const [fx,fy]=f[p.idx];p.x=fx*s;p.y=fy*s;p.vx=p.vy=0;p.armed=true;});
@@ -279,7 +359,7 @@ function aiThink(p){
 
 // ---------- Simülasyon adımı ----------
 function step(){
-  if(G.state==='goal'){G.stateT--;if(G.stateT<=0){if(G.over){endMatch();return;}resetPositions();G.state='play';$('banner').classList.remove('on');}
+  if(G.state==='goal'){G.stateT--;if(G.stateT<=0){if(G.drill){$('banner').classList.remove('on');G.state='play';drillNext();return;}if(G.over){endMatch();return;}resetPositions();G.state='play';$('banner').classList.remove('on');}
     integrate(false);return;}
   if(G.tick%10===0){aiAssign(0);aiAssign(1);}
   G.tick=(G.tick||0)+1;
@@ -287,7 +367,8 @@ function step(){
   for(const p of G.players){if(p.local)humanInput(p);else if(p.human){const i=NI&&NI[p.pid];if(Array.isArray(i)){p.ix=Math.max(-1,Math.min(1,Number(i[0])/10||0));p.iy=Math.max(-1,Math.min(1,Number(i[1])/10||0));p.kick=!!i[2];}else{p.ix=p.iy=0;p.kick=false;}}else aiThink(p);}
   integrate(true);
   if(!G.kickoff&&!G.golden&&!G.training){G.clock-=1/60;if(G.clock<=0){G.clock=0;if(G.score[0]!==G.score[1]){sWhistle(0.5,3);endMatch();return;}else{G.golden=true;}}}
-  if(Math.abs(G.ball.x)>FW+G.ball.r&&Math.abs(G.ball.y)<GH){goal(G.ball.x>0?0:1);}
+  if(G.drill){drillTick();if(!G||G.state==='over')return;}
+  if(Math.abs(G.ball.x)>FW+G.ball.r&&Math.abs(G.ball.y)<GH){if(G.drill)drillGoal(G.ball.x>0?0:1);else goal(G.ball.x>0?0:1);}
   if(G.tick%15===0)renderHud();
 }
 function integrate(live){
@@ -426,6 +507,7 @@ function renderHud(){
   if(!G)return;
   const m=Math.floor(G.clock/60),s=Math.floor(G.clock%60);
   const k=G.kits;
+  if(G.drill){$('hud').innerHTML=drillHud();return;}
   if(G.training){$('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>ANTRENMAN · GOL ${G.score[0]}<span class="clock">${G.score[1]?'KENDİ KALENE '+G.score[1]:'∞'}</span>`;return;}
   $('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>${esc(k[0].abbr||'SEN')} ${G.score[0]} – ${G.score[1]} ${esc(k[1].abbr)}<span class="kit" style="background:${k[1].p}"></span><span class="clock">${G.golden?'ALTIN GOL':m+':'+String(s).padStart(2,'0')}</span>`;
 }
@@ -745,6 +827,7 @@ function draw(){
     ctx.strokeStyle='#f3f1e8';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,-GH);ctx.lineTo(x1,-GH);ctx.lineTo(x1,GH);ctx.lineTo(x0,GH);ctx.stroke();
   }
   for(const q of posts){ctx.fillStyle=G.kits[q.team].p;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke();}
+  if(G.drill)drawDrill();
   drawCel('under');
   // oyuncular
   for(const p of G.players){
@@ -792,7 +875,7 @@ function togglePause(){if(!G||G.state==='over')return;if(G.net&&G.net.role==='cl
 $('pauseBtn').onclick=togglePause;$('resumeBtn').onclick=()=>{if(G&&G.net&&G.net.role==='client'){$('pauseOv').hidden=true;return;}togglePause();};
 $('quitBtn').onclick=()=>{if(G&&G.net){$('pauseOv').hidden=true;if(G.net.role==='host'){G.paused=false;hostBackToRoom();}else show('roomScr');return;}G=null;showMain('rooms');};
 $('endMenu').onclick=()=>{if(G&&G.net){if(G.net.role==='host')hostBackToRoom();G=null;leaveRoom(false);return;}G=null;showMain('rooms');};
-$('againBtn').onclick=()=>{if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
+$('againBtn').onclick=()=>{if(G&&G.drill){startDrill(G.drill.kind);return;}if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
 $('playBtn').onclick=()=>startMatch({});
 $('rotateOk').onclick=()=>{$('rotate').style.display='none';};
 // ortam sesi: aç/kapa ve ses yüksekliği (yağmurlu sahalarda görünür)

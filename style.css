@@ -316,3 +316,12 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .rankbar i{grid-column:1/-1;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
 .rankbar em{display:block;height:100%;background:var(--rk);border-radius:99px}
 .rdelta{font-size:13px;font-weight:700;margin:2px 0 6px}.rdelta.up{color:#7fe0aa}.rdelta.dn{color:#ff9a8f}
+/* antrenman görevleri */
+.drills{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:6px}
+.drill{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--chalk);font:inherit;cursor:pointer}
+.drill:hover{border-color:var(--flood)}
+.drill i{grid-row:1/4;font-style:normal;font-size:26px;color:var(--mc);line-height:1}
+.drill b{font-size:15px}.drill span{font-size:12px;color:var(--muted);line-height:1.35}.drill em{font-style:normal;font-size:12px;color:var(--mc);font-weight:700}
+.medalrow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0}
+.medal{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid var(--mc);color:var(--mc);opacity:.45}
+.medal.on{opacity:1;background:var(--mc);color:#111}
