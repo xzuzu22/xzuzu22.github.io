@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=d5eb62d">
+<link rel="stylesheet" href="style.css?v=fcda358">
 </head>
 <body>
 
@@ -151,6 +151,7 @@
           <div class="row" id="trailChips"></div>
           <p class="note" style="margin-top:-4px">Koşarken arkanda bıraktığın iz; odadaki herkes görür.</p>
           <p class="note" id="saveState"></p>
+          <button class="chip" id="bugBtn" type="button">🐞 Hata bildir</button>
           <button class="chip" id="adminBtn" hidden onclick="location.hash='#admin'">🛡️ Yönetici paneli</button>
         </div>
         <div class="panel">
@@ -293,7 +294,8 @@
   <div class="banner" id="banner">GOL!</div>
   <button id="kickBtn" class="touch-only" aria-label="Şut">ŞUT</button>
   <div class="overlay rotate" id="rotate"><div class="panel"><h2 style="justify-content:center">Telefonu yan çevir</h2><p class="note">Saha yatay ekranda daha iyi görünür.</p><button class="ghost" id="rotateOk" style="justify-content:center">Böyle devam et</button></div></div>
-  <div class="overlay" id="pauseOv" hidden><div class="panel"><h2 style="justify-content:center">Duraklatıldı</h2><button class="big" id="resumeBtn">Devam</button><button class="ghost" id="quitBtn" style="justify-content:center">Maçı bırak</button></div></div>
+  <div class="overlay" id="pauseOv" hidden><div class="panel"><h2 style="justify-content:center">Duraklatıldı</h2><button class="big" id="resumeBtn">Devam</button><button class="ghost" id="quitBtn" style="justify-content:center">Maçı bırak</button><button class="ghost" id="bugBtn2" style="justify-content:center">🐞 Hata bildir</button></div></div>
+</div>
   <div class="overlay" id="endOv" hidden><div class="panel"><div class="lbl" style="justify-content:center" id="endLbl">Maç sonu</div><div class="score" id="endScore"></div><div id="endMsg" class="note"></div><div id="endStats" class="endstats"></div><div id="endGoals" class="endgoals" hidden></div><button class="big" id="againBtn">Rövanş</button><button class="ghost" id="endMenu" style="justify-content:center">Menü</button></div></div>
   <div class="overlay" id="repOv" hidden><div class="panel reppanel"><div class="replbl" id="repLbl"></div><canvas id="repCv"></canvas><div class="repctl"><button class="chip" id="repPrev" aria-label="Önceki gol">◀◀</button><button class="chip" id="repPlay" aria-label="Oynat/durdur">❚❚</button><button class="chip" id="repNext" aria-label="Sonraki gol">▶▶</button><button class="chip" id="repSpeed">1x</button><button class="chip" id="repZoom" aria-pressed="false">Yakın</button><button class="chip" id="repSave">Videoyu indir</button><button class="chip" id="repClose">Kapat</button></div><p class="note" id="repMsg"></p></div></div>
 </section>
@@ -310,9 +312,14 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=d5eb62d"></script>
+<script type="module" src="app.js?v=fcda358"></script>
 <div class="invtoast" id="invToast" hidden></div>
 <div class="afktoast" id="afkToast" hidden></div>
 <div class="overlay adminov" id="adminOv" hidden><div class="panel adminpanel"><div class="row" style="justify-content:space-between;align-items:center"><b class="admtitle">Yönetici paneli</b><button class="chip" id="adminClose">Kapat</button></div><div id="adminBody"></div></div></div>
+  <div class="overlay" id="bugOv" hidden><div class="panel bugpanel"><h2>🐞 Hata bildir</h2>
+    <p class="note">Ne oldu? Ne yapıyordun, ne olmasını bekliyordun? Cihaz, tarayıcı, bağlantı ve oyun durumu bilgisi otomatik eklenir.</p>
+    <textarea id="bugText" maxlength="1000" rows="5" placeholder="örn. Gol attım ama skor değişmedi, maç donup kaldı…"></textarea>
+    <p class="note" id="bugMsg"></p>
+    <div class="row"><button class="big" id="bugSend">Gönder</button><button class="ghost" id="bugClose">Vazgeç</button></div></div>
 </body>
 </html>

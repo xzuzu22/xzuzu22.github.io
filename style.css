@@ -442,3 +442,18 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .rqwait{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rqspin{width:16px;height:16px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent,#f2c230);animation:rqs 1s linear infinite}
 @keyframes rqs{to{transform:rotate(360deg)}}
+.bugpanel{max-width:520px;width:calc(100% - 32px)}
+.bugpanel textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:110px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.35);color:inherit;border:1px solid rgba(255,255,255,.15);font:inherit}
+.admcard.bug details{margin-top:6px;font-size:.85em}
+.admcard.bug pre{white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:rgba(0,0,0,.35);padding:8px;border-radius:8px;font-size:.8em}
+.usec{display:flex;flex-direction:column;gap:6px;margin:14px 0 4px}
+.usec>.note{margin:0}
+.bars{display:flex;align-items:flex-end;gap:2px;height:calc(var(--h) + 18px);padding-top:4px}
+.bar{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;height:100%}
+.bar i{display:block;width:100%;max-width:22px;border-radius:3px 3px 0 0;background:#3fa36b}
+.bar.hi i{background:#f2c230}
+.bars.alt .bar i{background:#4a7fd6}.bars.alt2 .bar i{background:#b36ad8}
+.bar span{font-size:9px;opacity:.6;line-height:1;white-space:nowrap}
+.bars .bar:nth-child(even) span{visibility:hidden}
+@media(min-width:700px){.bars .bar:nth-child(even) span{visibility:visible}}
+.rettb{width:100%;border-collapse:collapse;font-size:.9em}.rettb td,.rettb th{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left}.rettb .n{text-align:right}

@@ -1130,8 +1130,18 @@ const DB={
       if(fn==='admin_search')return Object.entries(d.profiles).filter(([,p])=>(p.nick||'').toLowerCase().includes(String(args.p_q).toLowerCase())).map(([id,p])=>({id,nick:p.nick,avatar:p.avatar,rating:((d.ratings||{})[id]||{}).rating,reports:(d.reports||[]).filter(r=>r.target===id).length,leaves:0,banned_until:null}));
       if(fn==='admin_ban'){d.mockBans=(d.mockBans||[]).filter(b=>b.id!==args.p_user);d.mockBans.push({id:args.p_user,nick:nick(args.p_user),until:new Date(Date.now()+args.p_minutes*6e4).toISOString(),reason:args.p_reason});MOCKDB.put(d);return;}
       if(fn==='admin_unban'){d.mockBans=(d.mockBans||[]).filter(b=>b.id!==args.p_user);MOCKDB.put(d);return;}
+      if(fn==='admin_bugs')return (d.bugs||[]).filter(b=>b.status===(args&&args.p_status||'open'));
+      if(fn==='admin_bug_set'){(d.bugs||[]).forEach(b=>{if(b.id===args.p_id)b.status=args.p_status;});MOCKDB.put(d);return;}
+      if(fn==='admin_usage'){const t=new Date();const day=i=>{const x=new Date(t);x.setDate(x.getDate()-i);return x.toISOString().slice(0,10);};
+        return {today:day(0),wau:41,mau:96,dau:Array.from({length:30},(_,i)=>({day:day(29-i),users:Math.round(8+i*0.9+6*Math.sin(i/1.3)),new:Math.round(2+3*Math.abs(Math.sin(i))),matches:Math.round(14+i*1.4+9*Math.sin(i/1.7))})),
+          hours:Array.from({length:24},(_,h)=>({h,avg:+(Math.max(0.3,9*Math.exp(-((h-21)**2)/10)+2*Math.exp(-((h-14)**2)/8))).toFixed(1),today:h<=t.getHours()?Math.round(Math.max(0,8*Math.exp(-((h-21)**2)/10))):0})),
+          retention:Array.from({length:10},(_,i)=>({day:day(i+1),size:4+(i*3)%7,d1:Math.round((4+(i*3)%7)*0.45),d7:i>=7?Math.round((4+(i*3)%7)*0.2):0}))};}
       if(fn==='admin_dismiss'){d.reports=(d.reports||[]).filter(r=>r.target!==args.p_user);MOCKDB.put(d);return;}return;}
     const {data,error}=await sb.rpc(fn,args||{});if(error)throw error;return data;},
+  async submitBug(body,ctx){
+    if(!LIVE){const d=MOCKDB.get();d.bugs=d.bugs||[];d.bugs.unshift({id:d.bugs.length+1,user_id:uid,nick:prof.name,body,ctx,status:'open',created_at:new Date().toISOString()});MOCKDB.put(d);return d.bugs.length;}
+    const {data,error}=await sb.rpc('submit_bug',{p_body:body,p_ctx:ctx});if(error)throw error;return data;},
+  async pingActive(){if(!LIVE)return;await sb.rpc('ping_active');},
   async questStatus(){
     if(!LIVE){const d=MOCKDB.get();const n=new Date(),day=n.toISOString().slice(0,10);const ms=(d.matches||[]).filter(m=>m.user_id===uid);const agg=a=>({played:a.length,goals:a.reduce((s,m)=>s+m.goals,0),assists:a.reduce((s,m)=>s+m.assists,0),won:a.filter(m=>m.result==='W').length});
       return {day,week:'W',d:agg(ms.filter(m=>m.played_at.slice(0,10)===day)),w:agg(ms),stars:d.qstars||0,claimed:d.qclaimed||[]};}
@@ -1778,6 +1788,7 @@ async function openAdmin(){
   const act=(id,nick)=>{const w=document.createElement('div');w.className='admact';
     [['1 saat',60],['1 gün',1440],['7 gün',10080],['Kalıcı',5256000]].forEach(([l,m])=>{const b=document.createElement('button');b.className='chip danger';b.textContent='Uzaklaştır: '+l;b.onclick=async()=>{const r=prompt(`${nick} — uzaklaştırma sebebi (oyuncuya gösterilir):`,'Kurallara aykırı davranış');if(r===null)return;try{await DB.adminRpc('admin_ban',{p_user:id,p_minutes:m,p_reason:r});openAdmin();}catch(e){alert(errText(e));}};w.appendChild(b);});
     return w;};
+  await adminUsage(B);await adminBugs(B);
   H('Şikâyetler (son 14 gün)');
   if(!d.reports.length){const p=document.createElement('p');p.className='note';p.textContent='Şikâyet yok.';B.appendChild(p);}
   d.reports.forEach(r=>{const c=document.createElement('div');c.className='admcard'+(r.reporters>=3?' hot':'');
@@ -1800,6 +1811,71 @@ async function openAdmin(){
 $('adminClose').onclick=()=>{$('adminOv').hidden=true;if(location.hash==='#admin')history.replaceState(null,'',location.pathname+location.search);};
 function checkAdminRoute(){if(location.hash==='#admin'&&!$('main').hidden)openAdmin();}
 addEventListener('hashchange',checkAdminRoute);
+
+// ---------- Oyun içi hata bildirimi ----------
+const ERRLOG=[];const logErr=t=>{ERRLOG.push(new Date().toISOString().slice(11,19)+' '+String(t).slice(0,300));if(ERRLOG.length>20)ERRLOG.shift();};
+addEventListener('error',e=>logErr((e.message||'hata')+' @'+(e.filename||'').split('/').pop()+':'+(e.lineno||'')));
+addEventListener('unhandledrejection',e=>logErr('promise: '+(e.reason&&e.reason.message||e.reason)));
+{const ce=console.error.bind(console);console.error=(...a)=>{try{logErr(a.map(x=>x&&x.message||String(x)).join(' '));}catch(_){}ce(...a);};}
+function bugContext(){
+  const v=(document.querySelector('script[src*="app.js"]')||{}).src||'';
+  const g=G?{mode:G.drill?'drill:'+G.drill.kind:G.net?G.net.role:'bot',st:G.state,map:G.opt&&G.opt.map,score:G.score,tick:G.tick,players:(G.players||[]).length,ranked:!!G.ranked,mid:G.mid||''}:null;
+  return {v:(v.split('v=')[1]||'').slice(0,12),ua:navigator.userAgent.slice(0,200),scr:`${screen.width}x${screen.height}@${devicePixelRatio}`,win:`${innerWidth}x${innerHeight}`,lang:navigator.language,
+    touch:'ontouchstart' in window,standalone:matchMedia('(display-mode: standalone)').matches,net:NET.state,room:NET.code||'',host:!!NET.isHost,phase:NET.phase,ping:NET.ping||0,
+    rtc:RTC.dcs.size,screen:screens.find(s=>!$(s).hidden)||'',tab:document.querySelector('[role=tab][aria-selected=true]')?.dataset.tab||'',game:g,errors:ERRLOG.slice(-12)};}
+function openBug(){$('bugOv').hidden=false;$('bugMsg').textContent='';$('bugText').value='';$('bugSend').disabled=false;setTimeout(()=>$('bugText').focus(),0);for(const k in keys)keys[k]=false;}
+$('bugBtn').onclick=openBug;$('bugBtn2').onclick=()=>{$('pauseOv').hidden=true;if(G&&!G.net&&G.paused)G.paused=false;openBug();};
+$('bugClose').onclick=()=>{$('bugOv').hidden=true;};
+$('bugSend').onclick=async()=>{const t=cleanStr($('bugText').value,1000).trim();if(t.length<3){$('bugMsg').textContent='Biraz daha ayrıntı yaz.';return;}
+  $('bugSend').disabled=true;try{await DB.submitBug(t,bugContext());$('bugMsg').textContent='Teşekkürler! Bildirimin bize ulaştı.';setTimeout(()=>{$('bugOv').hidden=true;},1400);}
+  catch(e){$('bugSend').disabled=false;$('bugMsg').textContent=/too many/.test(e.message)?'Bir saatte en fazla 5 bildirim gönderebilirsin.':errText(e);}};
+$('bugText').addEventListener('keydown',e=>e.stopPropagation());
+
+// ---------- Yönetici: hata bildirimleri ve kullanım istatistikleri ----------
+async function adminBugs(B){
+  const h=document.createElement('h2');h.textContent='Hata bildirimleri';B.appendChild(h);
+  const box=document.createElement('div');B.appendChild(box);let status='open';
+  const load=async()=>{box.innerHTML='';const tg=document.createElement('div');tg.className='chips';
+    [['open','Açık'],['closed','Çözüldü']].forEach(([k,l])=>{const b=document.createElement('button');b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',String(k===status));b.onclick=()=>{status=k;load();};tg.appendChild(b);});box.appendChild(tg);
+    let L=[];try{L=await DB.adminRpc('admin_bugs',{p_status:status});}catch(e){const p=document.createElement('p');p.className='err';p.textContent=errText(e);box.appendChild(p);return;}
+    if(!L.length){const p=document.createElement('p');p.className='note';p.textContent=status==='open'?'Açık hata bildirimi yok.':'Kayıt yok.';box.appendChild(p);}
+    L.forEach(r=>{const c=document.createElement('div');c.className='admcard bug';const hd=document.createElement('div');hd.className='admh';
+      const n=document.createElement('b');n.textContent=r.nick||'?';const m=document.createElement('span');const x=r.ctx||{};
+      m.textContent=`${new Date(r.created_at).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${x.touch?'📱':'💻'} ${x.win||''} · ${x.screen||''}${x.game?' · '+x.game.mode+' '+(x.game.map||''):''}${x.ping?' · '+x.ping+' ms':''}`;hd.append(n,m);
+      const q=document.createElement('div');q.className='admq';q.textContent=r.body;
+      const det=document.createElement('details');const sm=document.createElement('summary');sm.textContent='Teknik ayrıntılar'+(Array.isArray(x.errors)&&x.errors.length?` (${x.errors.length} hata kaydı)`:'');
+      const pre=document.createElement('pre');pre.textContent=JSON.stringify(x,null,1);det.append(sm,pre);
+      const a=document.createElement('div');a.className='admact';const b=document.createElement('button');b.className='chip'+(status==='open'?' go':'');b.textContent=status==='open'?'Çözüldü olarak işaretle':'Yeniden aç';
+      b.onclick=async()=>{await DB.adminRpc('admin_bug_set',{p_id:r.id,p_status:status==='open'?'closed':'open'}).catch(e=>alert(errText(e)));load();};a.appendChild(b);
+      c.append(hd,q,det,a);box.appendChild(c);});};
+  await load();}
+function barChart(vals,labels,{h=120,hi=-1,fmt=v=>v,cls=''}={}){
+  const max=Math.max(1,...vals);const w=document.createElement('div');w.className='bars '+cls;w.style.setProperty('--h',h+'px');
+  vals.forEach((v,i)=>{const c=document.createElement('div');c.className='bar'+(i===hi?' hi':'');c.title=`${labels[i]}: ${fmt(v)}`;
+    const f=document.createElement('i');f.style.height=Math.max(v>0?3:0,Math.round(v/max*h))+'px';const l=document.createElement('span');l.textContent=labels[i];c.append(f,l);w.appendChild(c);});return w;}
+async function adminUsage(B){
+  const h=document.createElement('h2');h.textContent='Kullanım istatistikleri';B.appendChild(h);
+  let d;try{d=await DB.adminRpc('admin_usage');}catch(e){const p=document.createElement('p');p.className='err';p.textContent=errText(e);B.appendChild(p);return;}
+  const dau=d.dau||[],last=dau[dau.length-1]||{users:0},prev=dau[dau.length-2]||{users:0};
+  const st=document.createElement('div');st.className='stattiles';
+  const ret=(d.retention||[]).filter(r=>r.size>0);const pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+  const r1=ret.filter(r=>r.day<d.today);const r7=ret.filter(r=>(new Date(d.today)-new Date(r.day))/864e5>=8);
+  const sum=(a,k)=>a.reduce((s,r)=>s+(Number(r[k])||0),0);
+  [['Bugün aktif',last.users],['Dün aktif',prev.users],['Son 7 gün',d.wau],['Son 30 gün',d.mau],['1. gün dönüş',pct(sum(r1,'d1'),sum(r1,'size'))],['7. gün dönüş',pct(sum(r7,'d7'),sum(r7,'size'))]].forEach(([l,v])=>{
+    const t=document.createElement('div');t.innerHTML='<b></b><span></span>';t.querySelector('b').textContent=v??0;t.querySelector('span').textContent=l;st.appendChild(t);});B.appendChild(st);
+  const sec=(t,n)=>{const s=document.createElement('div');s.className='usec';const b=document.createElement('b');b.textContent=t;s.appendChild(b);if(n){const p=document.createElement('span');p.className='note';p.textContent=n;s.appendChild(p);}B.appendChild(s);return s;};
+  const dl=dau.map(x=>String(new Date(x.day).getDate()));
+  sec('Günlük aktif oyuncu (son 30 gün)').appendChild(barChart(dau.map(x=>x.users),dl,{hi:dau.length-1}));
+  sec('Oynanan maç / yeni oyuncu (son 30 gün)','Mavi: tamamlanan maç · mor: yeni oyuncu').appendChild(barChart(dau.map(x=>x.matches),dl,{h:80,cls:'alt',hi:dau.length-1}));
+  const nb=barChart(dau.map(x=>x.new),dl,{h:50,cls:'alt2',hi:dau.length-1});B.lastChild.appendChild(nb);
+  const hrs=d.hours||[];const hn=new Date().getHours();const peak=hrs.reduce((a,b)=>Number(b.avg)>Number(a.avg)?b:a,hrs[0]||{h:0,avg:0});
+  sec('Yoğun saatler',`Son 2 haftada saat başına ortalama aktif oyuncu · en yoğun ${String(peak.h).padStart(2,'0')}:00 (${peak.avg})`).appendChild(barChart(hrs.map(x=>Number(x.avg)),hrs.map(x=>String(x.h).padStart(2,'0')),{h:90,hi:hn,fmt:v=>v+' oyuncu'}));
+  const rs=sec('Geri dönüş (ilk gelinen güne göre)','Bir gün sonra ve bir hafta sonra tekrar gelenlerin oranı');
+  if(!ret.length){const p=document.createElement('p');p.className='note';p.textContent='Henüz yeterli veri yok; veriler bugünden itibaren toplanıyor.';rs.appendChild(p);}
+  else{const tb=document.createElement('table');tb.className='rettb';tb.innerHTML='<tr><th>İlk gün</th><th class="n">Yeni</th><th class="n">1. gün</th><th class="n">7. gün</th></tr>';
+    ret.slice(0,14).forEach(r=>{const tr=document.createElement('tr');const age=(new Date(d.today)-new Date(r.day))/864e5;
+      tr.innerHTML=`<td>${new Date(r.day).toLocaleDateString('tr-TR',{day:'numeric',month:'short'})}</td><td class="n">${r.size}</td><td class="n">${age>=1?pct(r.d1,r.size):'…'}</td><td class="n">${age>=8?pct(r.d7,r.size):'…'}</td>`;tb.appendChild(tr);});rs.appendChild(tb);}
+}
 
 // ---------- Günlük ve haftalık görevler ----------
 const QUESTS={daily:[['played',3,'3 maç oyna'],['goals',2,'2 gol at'],['won',1,'1 maç kazan']],weekly:[['played',15,'15 maç oyna'],['goals',10,'10 gol at'],['assists',5,'5 asist yap'],['won',7,'7 maç kazan']]};
@@ -2353,7 +2429,7 @@ function enterMain(){
   const chk=()=>DB.restrictions().then(r=>{Object.assign(MOD,r||{});
     if(MOD.banned_until&&new Date(MOD.banned_until)>new Date()){leaveRoom(true);try{NET.lobby&&NET.lobby.leave();}catch(e){}NET.lobby=null;show('gate');$('gateForm').hidden=true;
       $('gateMsg').textContent='Hesabın '+new Date(MOD.banned_until).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' tarihine kadar oyundan uzaklaştırıldı.'+(MOD.ban_reason?' Sebep: '+MOD.ban_reason:'');}}).catch(()=>{});
-  chk();setInterval(chk,120000);
+  chk();setInterval(chk,120000);DB.pingActive().catch(()=>{});setInterval(()=>DB.pingActive().catch(()=>{}),10*60e3);
   loadFriends(true);setInterval(()=>loadFriends(),60000);
   DB.questStatus().then(q=>{QSTARS=Number(q.stars)||0;if(prof.trail&&LOCKS.trail[prof.trail]>QSTARS)prof.trail='none';if(prof.ball&&LOCKS.ball[prof.ball]>QSTARS)prof.ball='classic';}).catch(()=>{});
   setTimeout(checkAdminRoute,300);DB.adminRpc('is_admin').then(v=>{IS_ADMIN=!!v;const b=$('adminBtn');if(b)b.hidden=!IS_ADMIN;}).catch(()=>{});
