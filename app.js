@@ -757,8 +757,9 @@ function drawWeather(){
     if(a>0.01){ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=`rgba(225,235,255,${a})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();}}
 }
 // ---------- Görünüm: top desenleri, iz efektleri, emojiler, arma ----------
-const BALLS={classic:'Klasik',football:'Futbol topu',gold:'Altın',neon:'Neon',fire:'Ateş',beach:'Plaj topu'};
-const TRAILS={none:'Yok',sparks:'Kıvılcım',smoke:'Duman',rainbow:'Gökkuşağı',comet:'Kuyruklu yıldız'};
+const BALLS={classic:'Klasik',football:'Futbol topu',gold:'Altın',neon:'Neon',fire:'Ateş',beach:'Plaj topu',galaxy:'Galaksi'};
+const TRAILS={none:'Yok',sparks:'Kıvılcım',smoke:'Duman',rainbow:'Gökkuşağı',comet:'Kuyruklu yıldız',stars:'Yıldız tozu'};
+const LOCKS={trail:{stars:5},ball:{galaxy:15}};let QSTARS=0;
 const EMOTES=['😂','😎','🔥','👏','😡','😭','🤝','⚽'];
 const cleanTrail=t=>TRAILS[t]?t:'none';
 const isEmote=t=>EMOTES.includes(t);
@@ -772,6 +773,7 @@ function drawBall(c,x,y,r,skin,live){
   let fill='#fff';
   if(skin==='gold'){const g=c.createRadialGradient(x-r*.35,y-r*.35,r*.1,x,y,r);g.addColorStop(0,'#fff6c8');g.addColorStop(.45,'#f2c230');g.addColorStop(1,'#a8740a');fill=g;}
   else if(skin==='neon')fill='#c9ffff';
+  else if(skin==='galaxy'){const g=c.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);g.addColorStop(0,'#5a4fd6');g.addColorStop(.6,'#1b1660');g.addColorStop(1,'#07051f');fill=g;}
   else if(skin==='fire'){const g=c.createRadialGradient(x,y,r*.1,x,y,r);g.addColorStop(0,'#fff3b0');g.addColorStop(.5,'#ffb020');g.addColorStop(1,'#e8400c');fill=g;}
   c.fillStyle=fill;c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();c.shadowBlur=0;
   if(skin==='football'){c.save();c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.clip();c.fillStyle='#111';
@@ -779,6 +781,7 @@ function drawBall(c,x,y,r,skin,live){
     pent(x,y,r*.36,-Math.PI/2);for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5;pent(x+Math.cos(a)*r*.95,y+Math.sin(a)*r*.95,r*.32,a+Math.PI);}c.restore();}
   if(skin==='beach'){const cols=['#e0483e','#f2c230','#2a62d6','#ffffff','#1f9d55','#ff7a1a'];for(let i=0;i<6;i++){c.fillStyle=cols[i];c.beginPath();c.moveTo(x,y);c.arc(x,y,r,i*Math.PI/3,(i+1)*Math.PI/3);c.closePath();c.fill();}
     c.fillStyle='#fff';c.beginPath();c.arc(x,y,r*.22,0,Math.PI*2);c.fill();}
+  if(skin==='galaxy'){c.fillStyle='#fff';[[.3,-.2,.09],[-.35,.25,.07],[.05,.45,.06],[-.15,-.45,.05],[.5,.2,.05]].forEach(([a,b2,s2])=>{c.beginPath();c.arc(x+a*r,y+b2*r,r*s2,0,Math.PI*2);c.fill();});}
   if(skin==='gold'){c.fillStyle='rgba(255,255,255,.7)';c.beginPath();c.ellipse(x-r*.35,y-r*.4,r*.28,r*.14,-0.6,0,Math.PI*2);c.fill();}
   c.lineWidth=2;c.strokeStyle=skin==='neon'?'#0aa':'#000';c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.stroke();
   c.restore();
@@ -793,7 +796,8 @@ function drawTrails(){
     if(t==='rainbow'||t==='comet'){ctx.lineCap='round';for(let i=1;i<L;i++){const a=p.trl[i-1],b=p.trl[i],k=1-(now-b.t)/life;
         ctx.strokeStyle=t==='rainbow'?`hsla(${b.h},90%,60%,${k*0.8})`:hexA(G.kits[p.team].p,k*0.7);ctx.lineWidth=p.r*1.1*k;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
     else for(let i=0;i<L;i+=t==='sparks'?1:2){const q=p.trl[i],k=1-(now-q.t)/life;
-      if(t==='sparks'){ctx.fillStyle=`hsla(${40+((i*37)%30)},100%,${60+k*20}%,${k})`;const j=((i*73)%11-5)*1.2;ctx.beginPath();ctx.arc(q.x+j,q.y-j*0.7,1.5+k*2.5,0,Math.PI*2);ctx.fill();}
+      if(t==='stars'){ctx.save();ctx.translate(q.x+((i*53)%13-6),q.y+((i*31)%11-5));ctx.rotate(i);ctx.fillStyle=`rgba(${200+((i*17)%55)},${220+((i*7)%35)},255,${k})`;const R=2+k*3;ctx.beginPath();for(let j=0;j<10;j++){const a=j*Math.PI/5,rr=j%2?R*.45:R;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();ctx.restore();}
+      else if(t==='sparks'){ctx.fillStyle=`hsla(${40+((i*37)%30)},100%,${60+k*20}%,${k})`;const j=((i*73)%11-5)*1.2;ctx.beginPath();ctx.arc(q.x+j,q.y-j*0.7,1.5+k*2.5,0,Math.PI*2);ctx.fill();}
       else{ctx.fillStyle=`rgba(210,215,210,${k*0.28})`;ctx.beginPath();ctx.arc(q.x,q.y,p.r*(1.2-k*0.6),0,Math.PI*2);ctx.fill();}}
   }
 }
@@ -810,9 +814,10 @@ function drawBadge(cv,kit){const c=cv.getContext('2d'),W=cv.width,H=cv.height,b=
 function badgeEl(kit,size=20){const cv=document.createElement('canvas');cv.width=size*2;cv.height=size*2;cv.style.cssText=`width:${size}px;height:${size}px;vertical-align:middle;margin-right:6px`;drawBadge(cv,cleanKit(kit||{}));return cv;}
 function renderLooks(){
   const bx=$('ballChips');if(bx&&!bx.childElementCount)for(const [k,n] of Object.entries(BALLS)){const b=document.createElement('button');b.className='chip lookchip';b.dataset.v=k;const cv=document.createElement('canvas');cv.width=44;cv.height=44;
-    const c=cv.getContext('2d');c.fillStyle='#2f6b34';c.fillRect(0,0,44,44);drawBall(c,22,22,13,k,false);b.append(cv,document.createTextNode(n));b.onclick=()=>{prof.ball=k;save();renderLooks();};bx.appendChild(b);}
-  const tx=$('trailChips');if(tx&&!tx.childElementCount)for(const [k,n] of Object.entries(TRAILS)){const b=document.createElement('button');b.className='chip';b.dataset.v=k;b.textContent=n;b.onclick=()=>{prof.trail=k;save();renderLooks();pushTag();};tx.appendChild(b);}
-  bx&&bx.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.v===(prof.ball||'classic'))));
+    const c=cv.getContext('2d');c.fillStyle='#2f6b34';c.fillRect(0,0,44,44);drawBall(c,22,22,13,k,false);b.append(cv,document.createTextNode(n+(LOCKS.ball[k]?` · ${LOCKS.ball[k]}★`:'')));b.onclick=()=>{if(LOCKS.ball[k]&&QSTARS<LOCKS.ball[k]){$('saveState').textContent=`${n} topu için ${LOCKS.ball[k]} görev yıldızı gerekiyor (sende ${QSTARS}).`;return;}prof.ball=k;save();renderLooks();};bx.appendChild(b);}
+  const tx=$('trailChips');if(tx&&!tx.childElementCount)for(const [k,n] of Object.entries(TRAILS)){const b=document.createElement('button');b.className='chip';b.dataset.v=k;b.textContent=n+(LOCKS.trail[k]?` · ${LOCKS.trail[k]}★`:'');b.onclick=()=>{if(LOCKS.trail[k]&&QSTARS<LOCKS.trail[k]){$('saveState').textContent=`${n} izi için ${LOCKS.trail[k]} görev yıldızı gerekiyor (sende ${QSTARS}).`;return;}prof.trail=k;save();renderLooks();pushTag();};tx.appendChild(b);}
+  bx&&bx.querySelectorAll('.chip').forEach(c=>{c.setAttribute('aria-pressed',String(c.dataset.v===(prof.ball||'classic')));c.classList.toggle('locked',!!LOCKS.ball[c.dataset.v]&&QSTARS<LOCKS.ball[c.dataset.v]);});
+  tx&&tx.querySelectorAll('.chip').forEach(c=>c.classList.toggle('locked',!!LOCKS.trail[c.dataset.v]&&QSTARS<LOCKS.trail[c.dataset.v]));
   tx&&tx.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.v===(prof.trail||'none'))));
 }
 function badgePicker(kit,onPick){
@@ -1108,6 +1113,13 @@ const DB={
       if(fn==='admin_unban'){d.mockBans=(d.mockBans||[]).filter(b=>b.id!==args.p_user);MOCKDB.put(d);return;}
       if(fn==='admin_dismiss'){d.reports=(d.reports||[]).filter(r=>r.target!==args.p_user);MOCKDB.put(d);return;}return;}
     const {data,error}=await sb.rpc(fn,args||{});if(error)throw error;return data;},
+  async questStatus(){
+    if(!LIVE){const d=MOCKDB.get();const n=new Date(),day=n.toISOString().slice(0,10);const ms=(d.matches||[]).filter(m=>m.user_id===uid);const agg=a=>({played:a.length,goals:a.reduce((s,m)=>s+m.goals,0),assists:a.reduce((s,m)=>s+m.assists,0),won:a.filter(m=>m.result==='W').length});
+      return {day,week:'W',d:agg(ms.filter(m=>m.played_at.slice(0,10)===day)),w:agg(ms),stars:d.qstars||0,claimed:d.qclaimed||[]};}
+    const {data,error}=await sb.rpc('quest_status');if(error)throw error;return data;},
+  async claimQuest(kind){
+    if(!LIVE){const d=MOCKDB.get();const q=await this.questStatus();const per=(kind==='daily'?'d:'+q.day:'w:'+q.week);d.qclaimed=[...(d.qclaimed||[]),per];d.qstars=(d.qstars||0)+(kind==='daily'?1:3);MOCKDB.put(d);return d.qstars;}
+    const {data,error}=await sb.rpc('claim_quest',{p_kind:kind});if(error)throw error;return data;},
   async friends(){
     if(!LIVE){const d=MOCKDB.get();return (d.friends||[]).filter(f=>f.a===uid||f.b===uid).map(f=>{const id=f.a===uid?f.b:f.a;const p=d.profiles[id]||{};return {id,status:f.status,incoming:f.status==='pending'&&f.requester!==uid,nick:p.nick,avatar:p.avatar,name_color:p.name_color};});}
     const {data,error}=await sb.rpc('my_friends');if(error)throw error;return data||[];},
@@ -1559,7 +1571,7 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 
 function pushRoom(){
   if(!NET.room)return;
-  const pr={pn:NET.isHost?0:(NET.ping||0),nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
+  const pr={pn:NET.isHost?0:(NET.ping||0),nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),qm:QSTARS>=30?1:0,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
   if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:avgPing(),afk:NET.afk||[],code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
@@ -1722,6 +1734,23 @@ $('adminClose').onclick=()=>{$('adminOv').hidden=true;if(location.hash==='#admin
 function checkAdminRoute(){if(location.hash==='#admin'&&!$('main').hidden)openAdmin();}
 addEventListener('hashchange',checkAdminRoute);
 
+// ---------- Günlük ve haftalık görevler ----------
+const QUESTS={daily:[['played',3,'3 maç oyna'],['goals',2,'2 gol at'],['won',1,'1 maç kazan']],weekly:[['played',15,'15 maç oyna'],['goals',10,'10 gol at'],['assists',5,'5 asist yap'],['won',7,'7 maç kazan']]};
+function untilTxt(kind){const n=new Date();let e;if(kind==='daily'){e=new Date(n);e.setHours(24,0,0,0);}else{e=new Date(n);const dd=(8-e.getDay())%7||7;e.setDate(e.getDate()+dd);e.setHours(0,0,0,0);}const ms=e-n,d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4);return d?`${d} gün ${h} sa`:`${h} sa ${m} dk`;}
+async function renderQuests(){
+  const box=$('questBox');if(!box)return;let q;try{q=await DB.questStatus();}catch(e){box.innerHTML='';return;}
+  QSTARS=Number(q.stars)||0;renderLooks();box.innerHTML='';
+  const head=document.createElement('div');head.className='qhead';head.innerHTML='<b></b><span></span>';head.querySelector('b').textContent=`⭐ ${QSTARS} görev yıldızı`;
+  const nx=[[5,'Yıldız tozu koşu izi'],[15,'Galaksi topu'],[30,'⭐ Görev ustası rozeti']].find(x=>x[0]>QSTARS);head.querySelector('span').textContent=nx?`${nx[0]-QSTARS} yıldız sonra: ${nx[1]}`:'Tüm görev ödüllerini açtın!';box.appendChild(head);
+  for(const kind of ['daily','weekly']){const prog=kind==='daily'?q.d:q.w,per=(kind==='daily'?'d:'+q.day:'w:'+q.week),claimed=(q.claimed||[]).includes(per);
+    const sec=document.createElement('div');sec.className='qsec';const h=document.createElement('div');h.className='qh';h.innerHTML='<b></b><span></span>';h.querySelector('b').textContent=kind==='daily'?'Günlük görevler · 1⭐':'Haftalık görevler · 3⭐';h.querySelector('span').textContent='yenilenmeye '+untilTxt(kind);sec.appendChild(h);
+    let all=true;QUESTS[kind].forEach(([k,n,l])=>{const v=Math.min(n,Number(prog&&prog[k])||0);if(v<n)all=false;const r=document.createElement('div');r.className='qrow'+(v>=n?' done':'');r.innerHTML='<span></span><i><em></em></i><small></small>';
+      r.querySelector('span').textContent=(v>=n?'✓ ':'')+l;r.querySelector('em').style.width=(v/n*100)+'%';r.querySelector('small').textContent=`${v}/${n}`;sec.appendChild(r);});
+    const b=document.createElement('button');b.className='chip'+(all&&!claimed?' go':'');b.disabled=!all||claimed;b.textContent=claimed?'Ödül alındı ✓':all?'Ödülü al':'Görevleri tamamla';
+    b.onclick=async()=>{b.disabled=true;try{QSTARS=await DB.claimQuest(kind);renderQuests();pushLobby();}catch(e){b.disabled=false;b.textContent=errText(e);}};sec.appendChild(b);box.appendChild(sec);}
+  const n2=document.createElement('p');n2.className='note';n2.textContent='Görevler sadece başka oyuncularla oynanan oda maçlarından sayılır. Ödüller yalnızca görünüm içindir, oyunda avantaj sağlamaz.';box.appendChild(n2);
+}
+
 // ---------- Oda ekranı ----------
 function specCount(){try{if(!NET.room)return 0;const v=roomView();if(!v)return 0;return named(NET.room.peers()).filter(p=>(v.teams[p.peer]||'spec')==='spec').length;}catch(e){return 0;}}
 function roomView(){
@@ -1751,7 +1780,7 @@ function renderRoom(){
       const k=ti>=0?kits[ti]:{p:'#55625a',s:'#55625a',pat:'solid'};av.style.background=k.p;av.style.color=lum(k.p)>0.6?'#111':'#fff';
       if(it.bot){av.textContent=cleanStr(it.bot.av,2);nm.textContent=cleanStr(it.bot.name,14)+' (bot)';st.textContent='🤖';
         if(NET.isHost)c.onclick=()=>{NET.bots=NET.bots.filter(b=>b!==it.bot);pushRoom();renderRoom();};}
-      else{const pr=it.p.presence;av.textContent=cleanStr(pr.av,2)||'?';nm.textContent='';nm.appendChild(nickEl(pr.tg,cleanStr(pr.nick,14)+(it.p.peer===v.host?' 👑':''),cleanCol(pr.nc),'span'));nm.appendChild(rankEl(pr.r,pr.rg,true));if(cleanTier(pr.sr))nm.appendChild(tierEl(pr.sr));
+      else{const pr=it.p.presence;av.textContent=cleanStr(pr.av,2)||'?';nm.textContent='';nm.appendChild(nickEl(pr.tg,cleanStr(pr.nick,14)+(it.p.peer===v.host?' 👑':''),cleanCol(pr.nc),'span'));nm.appendChild(rankEl(pr.r,pr.rg,true));if(cleanTier(pr.sr))nm.appendChild(tierEl(pr.sr));if(pr.qm===1){const q=document.createElement('span');q.className='tierb';q.textContent='⭐';q.title='Görev ustası';nm.appendChild(q);}
         if(it.p.sameTab)c.classList.add('me');
         const link=NET.isHost&&!it.p.sameTab?(dcOpen(it.p.peer)?' ·P2P':' ·yedek'):'';
         st.textContent=(v.phase==='lobby'&&pr.ready?'hazır':'')+link;if(pr.ready)st.classList.add('ok');
@@ -2001,7 +2030,7 @@ $('statOv').addEventListener('click',e=>{if(e.target.id==='statOv')$('statOv').h
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('statOv').hidden)$('statOv').hidden=true;});
 async function renderMyStats(){const box=$('myStats');if(!box)return;box.innerHTML='<p class="note">Yükleniyor…</p>';
   try{statsView(box,await DB.playerSummary(uid));if(MOD.leaves_total){const n=document.createElement('p');n.className='note leavenote';n.textContent=`Yarıda bıraktığın maç: ${MOD.leaves_total}`+(MOD.leaves_24h?` (son 24 saatte ${MOD.leaves_24h})`:'')+'. Her terk −20 beceri puanı ve 1 dakika maç bulma cezası getirir.';box.appendChild(n);}}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
-function renderProfile(){renderMyStats();renderLooks();
+function renderProfile(){renderMyStats();renderLooks();renderQuests();
   $('inName').value=prof.name;renderJersey();
   const box=$('nameColors');box.innerHTML='';
   NAME_COLORS.forEach(col=>{const b=document.createElement('button');b.className='sw';b.style.background=col;b.setAttribute('aria-label',col);b.setAttribute('aria-pressed',String(prof.nameColor===col));
@@ -2227,6 +2256,7 @@ function enterMain(){
       $('gateMsg').textContent='Hesabın '+new Date(MOD.banned_until).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' tarihine kadar oyundan uzaklaştırıldı.'+(MOD.ban_reason?' Sebep: '+MOD.ban_reason:'');}}).catch(()=>{});
   chk();setInterval(chk,120000);
   loadFriends(true);setInterval(()=>loadFriends(),60000);
+  DB.questStatus().then(q=>{QSTARS=Number(q.stars)||0;if(prof.trail&&LOCKS.trail[prof.trail]>QSTARS)prof.trail='none';if(prof.ball&&LOCKS.ball[prof.ball]>QSTARS)prof.ball='classic';}).catch(()=>{});
   setTimeout(checkAdminRoute,300);DB.adminRpc('is_admin').then(v=>{IS_ADMIN=!!v;const b=$('adminBtn');if(b)b.hidden=!IS_ADMIN;}).catch(()=>{});
   DB.claimRewards().then(r=>{MYREW=Array.isArray(r)?r.filter(x=>cleanTier(x.tier)):[];pushLobby();if(NET.room)pushRoom();}).catch(()=>{});
   DB.myRating().then(r=>{MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};renderMe();pushLobby();}).catch(()=>{});
