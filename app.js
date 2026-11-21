@@ -527,6 +527,7 @@ async function recordMyMatch(){
   if(!G||!G.net||G.recorded)return;const me=G.players.find(p=>p.local);if(!me)return;
   const humans=G.players.filter(p=>p.human).length;if(humans<2)return; // tek başına botlara karşı maçlar sayılmaz
   if(!G.mid)return;G.recorded=true;
+  if(G.anomFlag){const el=document.createElement('div');el.className='rdelta dn';el.textContent='Bu maçta şüpheli hareket tespit edildiği için sonucu onaylamadın; oyuncuların çoğunluğu da onaylamazsa maç sayılmaz.';$('endStats').before(el);return;}
   const before=MYR.r,wasPl=MYR.g<5,mid=G.mid;
   const show=st=>{if(!st)return;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());const el=document.createElement('div');
     if(st.mismatch){el.className='rdelta dn';el.textContent='Bildirdiğin skor diğer oyuncularınkiyle uyuşmadı; bu maç sana sayılmadı.';}
@@ -1620,7 +1621,7 @@ function onRoomPeers(){
   if(NET.isHost){if(checkDualHost())return onRoomPeers();if(hostReconcile())pushRoom();pushLobby();}
   else{
     const h=hostPeerOf(NET.room);
-    if(h){NET.hostSeenAt=Date.now();NET.migrateAt=0;rememberHost(h);const t=h.presence.teams&&h.presence.teams[TAB];
+    if(h){if(NET.lastHost&&NET.lastHost.peer!==h.peer)NET.hostChangeAt=performance.now();NET.hostSeenAt=Date.now();NET.migrateAt=0;rememberHost(h);const t=h.presence.teams&&h.presence.teams[TAB];
       if(t==='kicked'){clearRanked('kick');const bans=(hostPeerOf(NET.room)||{presence:{cfg:{}}}).presence.cfg?.bans;closeRoom(Array.isArray(bans)&&bans.includes(uid)?'Bu odaya girmen oda sahibi tarafından yasaklandı.':'Oda sahibi seni odadan çıkardı.');return;}
       if(t==='full'){closeRoom('Oda dolu.');return;}
       if(Array.isArray(h.presence.afk)&&h.presence.afk.includes(TAB)&&G&&G.ranked){penalizeLeave();afkToast('Hareketsiz kaldığın için izleyiciye alındın: −20 beceri puanı ve 1 dakika maç bulma cezası.',9000);}
@@ -1902,6 +1903,7 @@ function clientSync(h){
     if(G&&G.net&&G.net.role==='client'){clearRanked('host');const showingEnd=!$('game').hidden&&!$('endOv').hidden;if(!showingEnd){G=null;show('roomScr');}}}
 }
 function buildClientGame(pr){
+  NET.lastSnap=null;
   setMap(MAPS[pr.cfg.map]?pr.cfg.map:'classic');
   const kits=[kitOf(pr.cfg.kits?pr.cfg.kits[0]:0),kitOf(pr.cfg.kits?pr.cfg.kits[1]:1)];
   const cnt=[0,0];const players=pr.ro.filter(r=>Array.isArray(r)&&(r[1]===0||r[1]===1)).map(r=>{const t=r[1];const i=cnt[t]++;
@@ -1911,14 +1913,34 @@ function buildClientGame(pr){
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
-  G.mid=typeof pr.mid==='string'?pr.mid.slice(0,48):'';
+  G.mid=typeof pr.mid==='string'?pr.mid.slice(0,48):'';G.builtAt=performance.now();
   if(mine&&players.filter(p=>p.human).length>=2){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
   if(mine){show('game');resize();sWhistle(0.45,1);}else if(NET.watch){show('game');resize();renderHud();}else renderRoom();
 }
-function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;NET.snap=g;}
+function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;g._rt=performance.now();NET.snap=g;}
+// ---------- Şüpheli hareket tespiti (oda sahibi hilesi) ----------
+// Fizik sınırları: oyuncu en fazla ~2.5, top ~12 birim/tik gider. Bunun çok üstündeki sıçramalar, golsüz skor
+// değişimi ya da saatin ileri atlaması şüphelidir. 3 puanı geçen oyuncu maçı onaylamaz ve oda sahibini otomatik şikâyet eder.
+function anomCheck(a,b){
+  if(!G||!G.net||G.net.role!=='client'||G.myTeam<0&&!NET.watch)return;
+  const now=performance.now();if(now-(G.builtAt||0)<3000||now-(NET.hostChangeAt||0)<4000)return;
+  if(a.st!=='play'||b.st!=='play'||a.ko||b.ko||a.pa||b.pa||b.gs!==a.gs)return;
+  const rt=Math.max(1,((b._rt||now)-(a._rt||now))/16.7),ct=Math.max(0,(Number(a.c)-Number(b.c))*60),ticks=Math.max(rt,ct)+3;
+  const hits=[];
+  for(let i=0;i*3<b.s.length&&i*3<a.s.length;i++){const d=Math.hypot(b.s[3*i]-a.s[3*i],b.s[3*i+1]-a.s[3*i+1]);if(d>4*ticks+45)hits.push(['oyuncu ışınlandı',1]);}
+  if(Array.isArray(a.b)&&Array.isArray(b.b)){const d=Math.hypot(b.b[0]-a.b[0],b.b[1]-a.b[1]);if(d>15*ticks+45)hits.push(['top ışınlandı',1]);}
+  if(Array.isArray(a.sc)&&Array.isArray(b.sc)&&(b.sc[0]!==a.sc[0]||b.sc[1]!==a.sc[1]))hits.push(['golsüz skor değişimi',3]);
+  if(!b.gd&&Number(a.c)-Number(b.c)>rt/60+5)hits.push(['saat ileri atladı',3]);
+  if(!hits.length)return;
+  G.anom=(G.anom||0)+hits.reduce((x,h)=>x+h[1],0);G.anomKinds=[...new Set([...(G.anomKinds||[]),...hits.map(h=>h[0])])];
+  if(G.anom>=3&&!G.anomFlag){G.anomFlag=true;const h=hostPeerOf(NET.room);const hu=h&&h.presence.u;
+    if(hu&&hu!==uid)DB.report(hu,'hile','Otomatik tespit: '+G.anomKinds.join(', ')+' · oda '+NET.code).catch(()=>{});
+    afkToast('Bu maçta şüpheli hareket tespit edildi ve yöneticiye bildirildi. Maç sonucu senin onayınla sayılmayacak.',8000);}
+}
 function clientFrame(){
   const g=NET.snap;
   if(g&&g!==NET.lastSnap){
+    if(NET.lastSnap)anomCheck(NET.lastSnap,g);
     NET.lastSnap=g;
     G.players.forEach((p,i)=>{const x=g.s[3*i],y=g.s[3*i+1];if(typeof x==='number'&&typeof y==='number'){p.tx=x;p.ty=y;p.kick=!!g.s[3*i+2];}});
     if(Array.isArray(g.b)){G.ball.tx=g.b[0];G.ball.ty=g.b[1];}
