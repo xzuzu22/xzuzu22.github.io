@@ -117,7 +117,16 @@ const PR=15,BR=10,POSTR=8;
 const MAPS={classic:{name:'Classic',bx:420,by:200,fw:370,fh:170,gh:64,kr:75},big:{name:'Big',bx:600,by:270,fw:550,fh:240,gh:80,kr:80},huge:{name:'Huge',bx:750,by:350,fw:700,fh:320,gh:100,kr:80}};
 let FW,FH,GH,GD=30,KR,BX,BY,VW,VH,SPAWN;
 const posts=[];
-function setMap(k){const m=MAPS[k];FW=m.fw;FH=m.fh;GH=m.gh;KR=m.kr;BX=m.bx;BY=m.by;VW=BX;VH=BY;SPAWN=Math.min(400,0.75*FW);
+// Eğlence modları (derecesiz): fizik parametrelerini değiştirir
+const MODES={normal:{n:'Normal',i:'⚽'},
+  futsal:{n:'Futsal',i:'🥅',d:'Ağır top, az seken duvarlar: kısa pas ve top sürme',bd:0.978,kick:4.3,we:0.15},
+  tek:{n:'Tek dokunuş',i:'☝️',d:'Topa üst üste iki kez vuramazsın, pas vermek zorunlu',one:1},
+  dev:{n:'Dev kale',i:'🥅',d:'Kaleler 1,7 kat büyük, gol yağmuru',gh:1.7},
+  buz:{n:'Buzlu zemin',i:'🧊',d:'Kaygan saha: hızlanmak kolay, durmak zor',pa:0.045,pd:0.988}};
+let PH={pa:0.1,pak:0.07,pd:0.96,bd:0.99,kick:5,we:0.5,one:0,gh:1,mode:'normal'};
+function setMode(k){const m=MODES[k]||MODES.normal;PH={pa:m.pa||0.1,pak:m.pa?m.pa*0.7:0.07,pd:m.pd||0.96,bd:m.bd||0.99,kick:m.kick||5,we:m.we??0.5,one:m.one||0,gh:m.gh||1,mode:MODES[k]?k:'normal'};}
+const cleanMode=k=>MODES[k]?k:'normal';
+function setMap(k){const m=MAPS[k];FW=m.fw;FH=m.fh;GH=Math.round(m.gh*(PH.gh||1));KR=m.kr;BX=m.bx;BY=m.by;VW=BX;VH=BY;SPAWN=Math.min(400,0.75*FW);
   posts.length=0;for(const sx of[-1,1])for(const sy of[-1,1])posts.push({x:sx*FW,y:sy*GH,r:POSTR,im:0,vx:0,vy:0,team:sx<0?0:1});}
 setMap('classic');
 window.__uzk={G:()=>G,step:()=>step(),keys:()=>keys};
@@ -135,7 +144,7 @@ function mkPlayer(t,i,o){return {x:0,y:0,vx:0,vy:0,r:PR,im:0.5,team:t,idx:i,pid:
   avatar:o.avatar,name:o.name,nameColor:o.nameColor||'#ffffff',tag:cleanTag(o.tag),cel:cleanCel(o.cel),trail:cleanTrail(o.trail),sr:cleanTier(o.sr),g:0,a:0,kick:false,armed:true,ix:0,iy:0,tick:Math.floor(Math.random()*10),tx:0,ty:0,wantKick:false};}
 function startMatch(opt={}){
   audio();
-  const players=[];let size,training=false,kits;
+  const players=[];let size,training=false,kits;setMode(opt.drill?'normal':cleanMode(opt.mode));
   if(opt.roster){
     setMap(opt.map||'classic');kits=opt.kits;const cnt=[0,0];
     opt.roster.forEach(r=>{const i=cnt[r.team]++;players.push(mkPlayer(r.team,i,r));});
@@ -311,7 +320,7 @@ function collide(a,b,bounce){
 }
 function ballWalls(b){
   // duvar: top 0.5 × duvar 1 = 0.5 sekme; sadece duvara doğru giden hız yansır
-  const r=b.r,E=0.5;let hit=false;
+  const r=b.r,E=PH.we;let hit=false;
   if(Math.abs(b.y)>GH-2){ if(Math.abs(b.x)>FW-r){const s=Math.sign(b.x);b.x=s*(FW-r);if(b.vx*s>0)b.vx*=-E;hit=true;} }
   else if(Math.abs(b.x)>FW-1){
     if(Math.abs(b.y)>GH-r){const s=Math.sign(b.y);b.y=s*(GH-r);if(b.vy*s>0)b.vy*=-0.05;}
@@ -418,16 +427,16 @@ function integrate(live){
   const b=G.ball,ps=G.players;
   for(const p of ps){
     if(live){
-      const a=p.kick?P_ACC_K:P_ACC;p.vx+=p.ix*a;p.vy+=p.iy*a;
+      const a=p.kick?PH.pak:PH.pa;p.vx+=p.ix*a;p.vy+=p.iy*a;
       if(p.kick&&p.armed){
         const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy);
-        if(d>0&&d-p.r-b.r<4){b.vx+=dx/d*KICK*b.im;b.vy+=dy/d*KICK*b.im;p.armed=false;G.kickoff=false;sKick(1);G.kseq++;touch(p);}
+        if(d>0&&d-p.r-b.r<4&&!(PH.one&&G.lastKicker===p&&G.t1===p)){b.vx+=dx/d*PH.kick*b.im;b.vy+=dy/d*PH.kick*b.im;p.armed=false;G.kickoff=false;sKick(1);G.kseq++;touch(p);G.lastKicker=p;}
       }
     }
     if(!p.kick)p.armed=true;
   }
-  for(const p of ps){p.x+=p.vx;p.y+=p.vy;p.vx*=P_DAMP;p.vy*=P_DAMP;}
-  b.x+=b.vx;b.y+=b.vy;b.vx*=B_DAMP;b.vy*=B_DAMP;
+  for(const p of ps){p.x+=p.vx;p.y+=p.vy;p.vx*=PH.pd;p.vy*=PH.pd;}
+  b.x+=b.vx;b.y+=b.vy;b.vx*=PH.bd;b.vy*=PH.bd;
   // sekme katsayısı iki cismin katsayılarının çarpımı: oyuncu 0.5 × top 0.5 = 0.25
   for(const p of ps){if(collide(p,b,0.25)){G.kickoff=false;touch(p);}}
   for(const q of posts){if(collide(q,b,0.25))sKick(0.4);}
@@ -527,6 +536,7 @@ async function recordMyMatch(){
   if(!G||!G.net||G.recorded)return;const me=G.players.find(p=>p.local);if(!me)return;
   const humans=G.players.filter(p=>p.human).length;if(humans<2)return; // tek başına botlara karşı maçlar sayılmaz
   if(!G.mid)return;G.recorded=true;
+  if(PH.mode!=='normal'){const el=document.createElement('div');el.className='rdelta';el.textContent=`${MODES[PH.mode].i} ${MODES[PH.mode].n} modu eğlence maçıdır; beceri puanı ve istatistiklere sayılmaz.`;$('endStats').before(el);return;}
   if(G.anomFlag){const el=document.createElement('div');el.className='rdelta dn';el.textContent='Bu maçta şüpheli hareket tespit edildiği için sonucu onaylamadın; oyuncuların çoğunluğu da onaylamazsa maç sayılmaz.';$('endStats').before(el);return;}
   const before=MYR.r,wasPl=MYR.g<5,mid=G.mid;
   const show=st=>{if(!st)return;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());const el=document.createElement('div');
@@ -956,6 +966,7 @@ function draw(){
   drawCel('under');
   // oyuncular
   for(const p of G.players){
+    if(PH.one&&(G.net&&G.net.role==='client'?G.lk===G.players.indexOf(p):G.lastKicker===p&&G.t1===p)){ctx.strokeStyle='rgba(230,70,70,.95)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);ctx.stroke();}
     if(p.local){ctx.strokeStyle='rgba(242,194,48,.9)';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(p.x,p.y,p.r+6,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
     if(p.sr==='elmas'||p.sr==='usta')drawAura(p);
     drawDisc(ctx,p.x,p.y,p.r,G.kits[p.team],p.avatar,{kick:p.kick,name:p.name,nameColor:p.nameColor,tag:p.tag});
@@ -1342,7 +1353,7 @@ const QUICK=['Pas ver!','Geri dön!','Şut çek!','Benim!','Güzel!','Kaleye!','
 const KITS=[{n:'Kırmızı',a:'KRM',p:'#d63a2a',s:'#ffffff',pat:'solid'},{n:'Mavi',a:'MAV',p:'#2a62d6',s:'#ffffff',pat:'solid'},{n:'Sarı-Lacivert',a:'SRL',p:'#f2c230',s:'#0e2a5c',pat:'hoop'},{n:'Yeşil-Beyaz',a:'YŞB',p:'#1f9d55',s:'#ffffff',pat:'stripes'},{n:'Siyah-Beyaz',a:'SYB',p:'#111111',s:'#ffffff',pat:'stripes'},{n:'Mor',a:'MOR',p:'#7b3fd1',s:'#e64a8f',pat:'sash'},{n:'Turuncu',a:'TRN',p:'#ff7a1a',s:'#111111',pat:'half'},{n:'Bordo-Mavi',a:'BRM',p:'#7a1f2b',s:'#18b6c9',pat:'half'}];
 const kitOf=i=>{if(i&&typeof i==='object'){const c=cleanKit(i);return {name:cleanStr(i.name,24)||'Takım',abbr:cleanTag(i.abbr)||'TKM',...c};}const k=KITS[i]||KITS[0];return {name:k.n,abbr:k.a,p:k.p,s:k.s,pat:k.pat};};
 const leagueCode=id=>{const a='abcdefghjkmnpqrstuvwxyz23456789';let h=0;for(const ch of String(id))h=(h*31+ch.charCodeAt(0))>>>0;let s='';for(let i=0;i<4;i++){s+=a[h%a.length];h=Math.floor(h/a.length)+i*7919;}return s;};
-let roomDraft={map:'classic',max:4,time:180,goals:3};
+let roomDraft={map:'classic',max:4,time:180,goals:3,mode:'normal'};
 const randCode=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;};
 // rAF arka plandaki sekmede durur; ağ olayları için setTimeout kullanılır
 let rafQ=new Set();function schedule(fn){if(rafQ.has(fn))return;rafQ.add(fn);setTimeout(()=>{rafQ.delete(fn);try{fn();}catch(e){console.error(e);}},16);}
@@ -1369,7 +1380,7 @@ async function netConnect(){
 }
 function pushLobby(){
   if(!NET.lobby)return;
-  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:avgPing()}:null;
+  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,mode:cleanMode(NET.cfg.mode),n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:avgPing()}:null;
   NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,sr:bestTier(),chat:NET.lobbyChat,host,q:NET.queue&&!NET.room?{m:NET.queue.m,t:NET.queue.t}:null,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
 }
 function renderNetState(msg){
@@ -1394,7 +1405,7 @@ function renderOnline(){
   if(!rooms.length){list.innerHTML='<div class="empty">Şu an açık oda yok. İlk odayı sen kur ya da Hızlı eşleş\'e bas.</div>';}
   rooms.forEach(r=>{const b=document.createElement('button');b.className='roomcard';
     const full=(r.n||0)>=(r.max||0);
-    b.innerHTML=`<b></b><span class="cnt">${Number(r.n)||0}/${Number(r.max)||0}</span><span class="meta"><span class="tag">${esc(MAPS[r.map]?MAPS[r.map].name:'?')}</span>${r.ph==='game'?'<span class="tag live">Maçta</span>':'<span class="tag">Lobide</span>'}<span class="hn"></span></span>`;
+    b.innerHTML=`<b></b><span class="cnt">${Number(r.n)||0}/${Number(r.max)||0}</span><span class="meta"><span class="tag">${esc(MAPS[r.map]?MAPS[r.map].name:'?')}</span>${MODES[r.mode]&&r.mode!=='normal'?`<span class="tag fun">${MODES[r.mode].i} ${esc(MODES[r.mode].n)}</span>`:''}${r.ph==='game'?'<span class="tag live">Maçta</span>':'<span class="tag">Lobide</span>'}<span class="hn"></span></span>`;
     if(Number(r.lq)>0){const pe=pingEl(Number(r.lq));pe.title='Bu odadaki oyuncuların ortalama gecikmesi';b.querySelector('.meta').appendChild(pe);}
     b.querySelector('b').textContent=cleanStr(r.name,28)||'Oda';b.querySelector('.hn').textContent='Kuran: '+cleanStr(r.hostNick,14);
     if(full&&r.ph!=='game'){b.disabled=true;b.style.opacity=.55;}
@@ -1546,7 +1557,8 @@ QUICK.forEach(q=>{const b=document.createElement('button');b.className='chip';b.
 // ---------- Oda kurma / girme / çıkma ----------
 function bindDraft(id,key,num=true){const box=$(id);const sync=()=>box.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(String(roomDraft[key])===c.dataset.v)));
   box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{roomDraft[key]=num?Number(c.dataset.v):c.dataset.v;sync();});sync();}
-bindDraft('rdMap','map',false);bindDraft('rdMax','max');bindDraft('rdTime','time');bindDraft('rdGoals','goals');
+bindDraft('rdMap','map',false);bindDraft('rdMode','mode',false);
+{const upd=()=>{const m=MODES[roomDraft.mode];$('rdModeNote').textContent=m&&m.d?m.d+' · eğlence modu, beceri puanını etkilemez.':'Dereceli: beceri puanı ve istatistiklere sayılır.';};$('rdMode').addEventListener('click',()=>setTimeout(upd,0));upd();}bindDraft('rdMax','max');bindDraft('rdTime','time');bindDraft('rdGoals','goals');
 function createRoom(cfg){
   if(leaveBanLeft()){$('netMsg').textContent=leaveBanMsg();showMain('rooms');return;}
   NET.isHost=true;
@@ -1554,7 +1566,7 @@ function createRoom(cfg){
   NET.teams={};NET.wantSeen={};NET.bots=[];NET.phase='lobby';NET.ro=null;NET.want='red';NET.qStarted=false;
   enterRoom(cfg.code||randCode());
 }
-$('createRoom').onclick=()=>createRoom({name:cleanStr($('inRoomName').value,28).trim()||(prof.name+' odası'),map:roomDraft.map,max:roomDraft.max,time:roomDraft.time,goals:roomDraft.goals,priv:$('rdPriv').checked});
+$('createRoom').onclick=()=>createRoom({name:cleanStr($('inRoomName').value,28).trim()||(prof.name+' odası'),map:roomDraft.map,max:roomDraft.max,time:roomDraft.time,goals:roomDraft.goals,mode:roomDraft.mode,priv:$('rdPriv').checked});
 $('joinCode').onclick=()=>{const c=cleanStr($('inCode').value,6).toLowerCase().replace(/[^a-z0-9]/g,'');if(c.length===4)enterRoom(c);else $('netMsg').textContent='Oda kodu 4 karakter olmalı.';};
 $('quickBtn').onclick=()=>{ // en kalabalık, yeri olan, lobideki odaya gir; yoksa oda aç
   const sc=r=>(r.n||0)*120-Math.abs((Number(r.ar)||1000)-MYR.r)*0.6;
@@ -1737,7 +1749,7 @@ function promoteToHost(){
     const ro=L.ro.map(r=>{const x=[...r];if(x[0]===L.peer)x[5]=0;return x;}).filter(r=>r[1]===0||r[1]===1);
     const roster=ro.map(r=>({pid:String(r[0]),team:r[1],human:!!r[5],local:r[0]===TAB,remote:!!r[5]&&r[0]!==TAB,avatar:cleanStr(r[2],2),name:cleanBad(cleanStr(r[3],14))+(r[0]===L.peer?' (bot)':''),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),rating:Number(r[8])||1000,trail:cleanTrail(r[9]),sr:cleanTier(r[10])}));
     const mt=NET.teams[TAB];const watching=!$('game').hidden;
-    startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1,silent:1});
+    startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,mode:NET.cfg.mode,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1,silent:1});
     G.players.forEach((p,i)=>{const op=old.players[i];if(op){p.x=op.x;p.y=op.y;p.g=op.g||0;p.a=op.a||0;}const v=Array.isArray(snap.v)&&snap.v[i];if(v){p.vx=v[0]/100;p.vy=v[1]/100;}});
     G.ball.x=old.ball.x;G.ball.y=old.ball.y;if(Array.isArray(snap.bv)){G.ball.vx=snap.bv[0]/100;G.ball.vy=snap.bv[1]/100;}
     G.score=[...old.score];G.clock=old.clock;G.golden=!!old.golden;G.kickoff=snap.ko===1;G.kickTeam=snap.kt===1?1:0;
@@ -1908,7 +1920,7 @@ function renderRoom(){
   if(!v){$('rName').textContent='Odaya bağlanılıyor…';$('rMeta').textContent='';$('rStatus').textContent='Oda sahibi bekleniyor.';return;}
   const cfg=v.cfg,kits=[kitOf(cfg.kits?cfg.kits[0]:0),kitOf(cfg.kits?cfg.kits[1]:1)];
   $('rName').textContent=cleanStr(cfg.name,28)||'Oda';
-  $('rMeta').textContent=`${cfg.cup?'🏆 Kupa maçı · ':cfg.league?'🏆 Lig maçı · ':''}${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
+  $('rMeta').textContent=`${cfg.cup?'🏆 Kupa maçı · ':cfg.league?'🏆 Lig maçı · ':cfg.qteams?'🏆 Dereceli · ':''}${MODES[cfg.mode]&&cfg.mode!=='normal'?MODES[cfg.mode].i+' '+MODES[cfg.mode].n+' (derecesiz) · ':''}${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
   const ps=named(NET.room.peers());const cols={red:[],spec:[],blue:[]};
   for(const p of ps){const t=v.teams[p.peer]||'spec';if(t==='full'||t==='kicked')continue;(cols[t]||cols.spec).push({p});}
   for(const b of v.bots){if(b&&(b.team===0||b.team===1))cols[b.team===0?'red':'blue'].push({bot:b});}
@@ -2007,17 +2019,17 @@ $('hsStart').onclick=()=>{
   NET.ro=roster.map(r=>[r.pid,r.team,r.avatar,r.name,r.nameColor,r.human?1:0,r.tag||'',r.cel||'',r.rating||1000,r.trail||'none',r.sr||'']);NET.phase='game';NET.pubN=0;
   pushRoom();pushLobby();
   const mt=NET.teams[TAB];
-  startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
+  startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,mode:NET.cfg.mode,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
   sendSys('Maç başladı!');
   G.mid=NET.mid;
-  if(roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
+  if(cleanMode(NET.cfg.mode)==='normal'&&roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
 };
 function netHostInputs(){return NET.inputs;}
 function netHostPublish(){
   if(!NET.room||!G)return;
   NET.pubN++;if(NET.pubN%2)return; // 30 Hz
   const s=[];for(const p of G.players)s.push(Math.round(p.x),Math.round(p.y),p.kick?1:0);
-  const g={n:NET.pubN,s,b:[Math.round(G.ball.x),Math.round(G.ball.y)],sc:G.score,c:Math.round(G.clock*10)/10,st:G.state,gd:G.golden?1:0,ks:G.kseq,gs:G.gseq,lg:G.lastGoal,gi:G.gi,ai:G.ai,pg:G.players.map(p=>[p.g||0,p.a||0]),pa:G.paused?1:0,v:G.players.map(p=>[Math.round((p.vx||0)*100),Math.round((p.vy||0)*100)]),bv:[Math.round((G.ball.vx||0)*100),Math.round((G.ball.vy||0)*100)],ko:G.kickoff?1:0,kt:G.kickTeam,stt:G.stateT|0};
+  const g={n:NET.pubN,s,b:[Math.round(G.ball.x),Math.round(G.ball.y)],sc:G.score,c:Math.round(G.clock*10)/10,st:G.state,gd:G.golden?1:0,ks:G.kseq,gs:G.gseq,lg:G.lastGoal,gi:G.gi,ai:G.ai,pg:G.players.map(p=>[p.g||0,p.a||0]),pa:G.paused?1:0,v:G.players.map(p=>[Math.round((p.vx||0)*100),Math.round((p.vy||0)*100)]),bv:[Math.round((G.ball.vx||0)*100),Math.round((G.ball.vy||0)*100)],ko:G.kickoff?1:0,kt:G.kickTeam,stt:G.stateT|0,lk:PH.one&&G.lastKicker&&G.t1===G.lastKicker?G.players.indexOf(G.lastKicker):-1};
   const msg=JSON.stringify({g});let needRelay=false;
   for(const p of named(NET.room.peers())){if(p.sameTab)continue;const t=NET.teams[p.peer];if(t==='full'||t==='kicked')continue;const dc=dcOpen(p.peer);
     if(dc){try{dc.send(msg);}catch(e){needRelay=true;}}else needRelay=true;}
@@ -2036,7 +2048,7 @@ function clientSync(h){
 }
 function buildClientGame(pr){
   NET.lastSnap=null;
-  setMap(MAPS[pr.cfg.map]?pr.cfg.map:'classic');
+  setMode(cleanMode(pr.cfg.mode));setMap(MAPS[pr.cfg.map]?pr.cfg.map:'classic');
   const kits=[kitOf(pr.cfg.kits?pr.cfg.kits[0]:0),kitOf(pr.cfg.kits?pr.cfg.kits[1]:1)];
   const cnt=[0,0];const players=pr.ro.filter(r=>Array.isArray(r)&&(r[1]===0||r[1]===1)).map(r=>{const t=r[1];const i=cnt[t]++;
     return {pid:String(r[0]),team:t,idx:i,human:!!r[5],local:r[0]===TAB,remote:false,avatar:cleanStr(r[2],2),name:cleanBad(cleanStr(r[3],14)),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),rating:Math.max(100,Math.min(3000,Number(r[8])||1000)),trail:cleanTrail(r[9]),sr:cleanTier(r[10]),g:0,a:0,x:0,y:0,tx:0,ty:0,r:PR,kick:false};});
@@ -2077,7 +2089,7 @@ function clientFrame(){
     G.players.forEach((p,i)=>{const x=g.s[3*i],y=g.s[3*i+1];if(typeof x==='number'&&typeof y==='number'){p.tx=x;p.ty=y;p.kick=!!g.s[3*i+2];}});
     if(Array.isArray(g.b)){G.ball.tx=g.b[0];G.ball.ty=g.b[1];}
     if(Array.isArray(g.sc))G.score=[Number(g.sc[0])||0,Number(g.sc[1])||0];
-    G.clock=Number(g.c)||0;G.golden=!!g.gd;G.paused=!!g.pa;
+    G.clock=Number(g.c)||0;G.golden=!!g.gd;G.paused=!!g.pa;G.lk=Number.isInteger(g.lk)?g.lk:-1;
     if(Array.isArray(g.pg))G.players.forEach((p,i)=>{const v=g.pg[i];if(Array.isArray(v)){p.g=Math.max(0,Number(v[0])||0);p.a=Math.max(0,Number(v[1])||0);}});
     if(G.ks>=0&&g.ks>G.ks)sKick(1);G.ks=g.ks;
     if(G.gs>=0&&g.gs>G.gs){const t=g.lg;startCel(G.players[Number(g.gi)],t);goalBanner(G.myTeam<0||t===G.myTeam?'GOL!':'GOL YEDİK',Number(g.gi),Number(g.ai));sCrowd();if(Array.isArray(g.sc))G.score=[Number(g.sc[0])||0,Number(g.sc[1])||0];repGoal(t,Number(g.gi),Number(g.ai),-1);}

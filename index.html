@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=fcda358">
+<link rel="stylesheet" href="style.css?v=25ed736">
 </head>
 <body>
 
@@ -83,6 +83,9 @@
           <div class="field"><label class="lbl" for="inRoomName">Oda adı</label><input type="text" id="inRoomName" maxlength="28" placeholder="Akşam maçı"></div>
           <div class="lbl">Saha</div>
           <div class="row" id="rdMap"><button class="chip" data-v="classic">Classic · 1v1–2v2</button><button class="chip" data-v="big">Big · 3v3–4v4</button><button class="chip" data-v="huge">Huge · 5v5</button></div>
+          <div class="lbl">Oyun modu</div>
+          <div class="row" id="rdMode"><button class="chip" data-v="normal">⚽ Normal</button><button class="chip" data-v="futsal">🥅 Futsal</button><button class="chip" data-v="tek">☝️ Tek dokunuş</button><button class="chip" data-v="dev">🥅 Dev kale</button><button class="chip" data-v="buz">🧊 Buzlu zemin</button></div>
+          <p class="note" id="rdModeNote" style="margin:0"></p>
           <div class="lbl">En fazla oyuncu</div>
           <div class="row" id="rdMax"><button class="chip" data-v="2">2</button><button class="chip" data-v="4">4</button><button class="chip" data-v="6">6</button><button class="chip" data-v="8">8</button><button class="chip" data-v="10">10</button><button class="chip" data-v="16">16</button></div>
           <div class="lbl">Süre ve gol sınırı</div>
@@ -312,7 +315,7 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=fcda358"></script>
+<script type="module" src="app.js?v=25ed736"></script>
 <div class="invtoast" id="invToast" hidden></div>
 <div class="afktoast" id="afkToast" hidden></div>
 <div class="overlay adminov" id="adminOv" hidden><div class="panel adminpanel"><div class="row" style="justify-content:space-between;align-items:center"><b class="admtitle">Yönetici paneli</b><button class="chip" id="adminClose">Kapat</button></div><div id="adminBody"></div></div></div>
