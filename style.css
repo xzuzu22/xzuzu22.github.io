@@ -434,3 +434,11 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .lsres{margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.06);font-weight:600}
 .lsres.up{background:rgba(60,200,110,.18)}.lsres.down{background:rgba(230,80,80,.18)}
 .ttl{margin-left:6px;font-size:.85em;cursor:help}
+.rqueue{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:12px}
+.rqhead{display:flex;flex-direction:column;gap:2px;flex:1 1 260px}
+.rqhead .note{margin:0}
+.rqbtns{display:flex;gap:8px}.rqbtns button{min-width:64px;font-weight:700}
+.rqbtns[hidden],.rqwait[hidden]{display:none}
+.rqwait{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rqspin{width:16px;height:16px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent,#f2c230);animation:rqs 1s linear infinite}
+@keyframes rqs{to{transform:rotate(360deg)}}

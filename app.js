@@ -1354,20 +1354,20 @@ async function netConnect(){
   if(!ok){NET.state='bad';renderNetState('Canlı sunucuya bağlanılamadı. Biraz sonra tekrar dene; botlara karşı antrenman açık.');setTimeout(()=>{NET.state='off';netConnect();},8000);return;}
   NET.lobby=lobby;NET.state='on';
   lobby.onPeers(()=>schedule(renderOnline));
-  lobby.on('inv',onInvite);lobby.on('frq',d=>{if(d&&d.to===uid)loadFriends(true);});
+  lobby.on('qm',onQueueMatch);lobby.on('inv',onInvite);lobby.on('frq',d=>{if(d&&d.to===uid)loadFriends(true);});
   pushLobby();renderNetState('');renderOnline();
 }
 function pushLobby(){
   if(!NET.lobby)return;
   const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:avgPing()}:null;
-  NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,sr:bestTier(),chat:NET.lobbyChat,host,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
+  NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,sr:bestTier(),chat:NET.lobbyChat,host,q:NET.queue&&!NET.room?{m:NET.queue.m,t:NET.queue.t}:null,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
 }
 function renderNetState(msg){
   const el=$('netState');if(!el)return;
   el.className='netdot'+(NET.state==='on'?' on':NET.state==='bad'?' bad':'');
   el.textContent=NET.state==='on'?'çevrimiçi':NET.state==='bad'?'bağlantı yok':'bağlanıyor';
   if(msg!==undefined)$('netMsg').textContent=msg;
-  const dis=NET.state!=='on';['createRoom','joinCode','quickBtn'].forEach(id=>$(id).disabled=dis);
+  const dis=NET.state!=='on';['createRoom','joinCode','quickBtn'].forEach(id=>$(id).disabled=dis);if(typeof renderQueue==='function')renderQueue();
 }
 function lobbyRooms(){
   if(!NET.lobby)return[];
@@ -1541,7 +1541,7 @@ function createRoom(cfg){
   if(leaveBanLeft()){$('netMsg').textContent=leaveBanMsg();showMain('rooms');return;}
   NET.isHost=true;
   NET.cfg={kits:[0,1],free:true,skin:SKINS[prof.skin]?prof.skin:'classic',...cfg};
-  NET.teams={};NET.wantSeen={};NET.bots=[];NET.phase='lobby';NET.ro=null;NET.want='red';
+  NET.teams={};NET.wantSeen={};NET.bots=[];NET.phase='lobby';NET.ro=null;NET.want='red';NET.qStarted=false;
   enterRoom(cfg.code||randCode());
 }
 $('createRoom').onclick=()=>createRoom({name:cleanStr($('inRoomName').value,28).trim()||(prof.name+' odası'),map:roomDraft.map,max:roomDraft.max,time:roomDraft.time,goals:roomDraft.goals,priv:$('rdPriv').checked});
@@ -1553,9 +1553,56 @@ $('quickBtn').onclick=()=>{ // en kalabalık, yeri olan, lobideki odaya gir; yok
   if(r){NET.want='red';enterRoom(r.code,true);}
   else createRoom({name:prof.name+' · hızlı maç',map:'classic',max:4,time:180,goals:3,priv:false});
 };
+// ---------- Dereceli eşleştirme sırası ----------
+// Sıradakiler lobi varlığında q:{m,t} yayınlar. En eski bekleyen "lider"dir: puanı kendisine en yakın 2m oyuncuyu seçer,
+// gizli bir oda açar ve seçilenlere 'qm' ile oda kodunu yollar. Puan aralığı bekledikçe genişler.
+const QWIN=s=>Math.min(1000,120+s*8);
+function queuePeers(m){if(!NET.lobby)return[];const seen=new Set();
+  return named(NET.lobby.peers()).filter(p=>p.presence.q&&Number(p.presence.q.m)===m&&!p.presence.inRoom&&typeof p.presence.u==='string')
+    .filter(p=>!seen.has(p.presence.u)&&seen.add(p.presence.u)).map(p=>({u:p.presence.u,r:Number(p.presence.r)||1000,t:Number(p.presence.q.t)||Date.now(),nick:p.presence.nick}))
+    .sort((a,b)=>a.t-b.t||(a.u<b.u?-1:1));}
+function startQueue(m){
+  if(leaveBanLeft()){$('netMsg').textContent=leaveBanMsg();return;}
+  if(NET.state!=='on'||NET.room)return;
+  NET.queue={m,t:Date.now()};pushLobby();renderQueue();}
+function stopQueue(){NET.queue=null;pushLobby();renderQueue();}
+function renderQueue(){const q=NET.queue;$('rqBtns').hidden=!!q;$('rqWait').hidden=!q;
+  document.querySelectorAll('#rqBtns button').forEach(b=>b.disabled=NET.state!=='on');
+  if(!q)return;const s=Math.floor((Date.now()-q.t)/1000);const n=queuePeers(q.m).length;
+  $('rqTxt').textContent=`${q.m}v${q.m} aranıyor · ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · sırada ${Math.max(n,1)}/${q.m*2} oyuncu · ±${QWIN(s)} puan`;}
+document.querySelectorAll('#rqBtns button').forEach(b=>b.onclick=()=>startQueue(Number(b.dataset.m)));
+$('rqCancel').onclick=stopQueue;
+setInterval(()=>{const q=NET.queue;if(!q)return;renderQueue();if(NET.room||!NET.lobby)return;
+  const ps=queuePeers(q.m);if(!ps.length||ps[0].u!==uid)return; // lider değilim
+  const need=q.m*2;if(ps.length<need)return;
+  const me=ps[0],now=Date.now();
+  const pick=[me,...ps.slice(1).filter(p=>Math.abs(p.r-me.r)<=Math.max(QWIN((now-me.t)/1000),QWIN((now-p.t)/1000))).sort((a,b)=>Math.abs(a.r-me.r)-Math.abs(b.r-me.r)).slice(0,need-1)];
+  if(pick.length<need)return;
+  // takımları puana göre yılan sırasıyla dengele (1-4 / 2-3 ...)
+  const srt=[...pick].sort((a,b)=>b.r-a.r);const qt={};srt.forEach((p,i)=>{const k=i%4;qt[p.u]=(k===0||k===3)?'red':'blue';});
+  if(need===2){qt[srt[0].u]='red';qt[srt[1].u]='blue';}
+  const code=randCode();
+  NET.lobby.send('qm',{code,m:q.m,uids:pick.map(p=>p.u)});
+  NET.queue=null;renderQueue();
+  createRoom({name:`Dereceli ${q.m}v${q.m}`,map:q.m===3?'big':'classic',max:need,time:180,goals:3,priv:true,free:false,code,qteams:qt,qAt:Date.now()});
+},1500);
+function onQueueMatch(d){
+  if(!d||!NET.queue||!Array.isArray(d.uids)||!d.uids.includes(uid)||typeof d.code!=='string'||!/^[a-z0-9]{4}$/.test(d.code))return;
+  NET.queue=null;renderQueue();$('netMsg').textContent='Rakipler bulundu! Maça bağlanılıyor…';
+  setTimeout(()=>{NET.watch=false;enterRoom(d.code);},1200);}
+// host: dereceli odada herkes gelince (ya da 25 sn sonra yeterli oyuncu varsa) maçı kendisi başlatır
+setInterval(()=>{if(!NET.room||!NET.isHost||!NET.cfg||!NET.cfg.qteams||NET.phase!=='lobby'||NET.qStarted)return;
+  const want=Object.keys(NET.cfg.qteams);const ps=named(NET.room.peers());const here=new Set(ps.map(p=>p.presence.u));
+  const all=want.every(u=>here.has(u));const age=Date.now()-(NET.cfg.qAt||0);
+  const red=ps.some(p=>NET.teams[p.peer]==='red'),blue=ps.some(p=>NET.teams[p.peer]==='blue');
+  if(all||(age>25000&&red&&blue)){NET.qStarted=true;sendSys(all?'Herkes geldi, maç 3 saniye içinde başlıyor!':'Bazı oyuncular gelmedi, eksik kadroyla başlıyor.');
+    setTimeout(()=>{if(NET.room&&NET.isHost&&NET.phase==='lobby')$('hsStart').click();},3000);}
+  else if(age>40000){closeRoom('Rakipler odaya bağlanamadı. Yeniden sıraya girebilirsin.','end');}
+},1000);
 async function enterRoom(code,autoTeam){
   if(!NET.lobby)return;
   if(leaveBanLeft()&&!NET.watch){$('netMsg').textContent=leaveBanMsg();showMain('rooms');return;}
+  if(NET.queue){NET.queue=null;renderQueue();}
   if(NET.room)await leaveRoom(true);
   const room=makeRoom('uzk-r-'+code);
   $('netMsg').textContent='Odaya bağlanılıyor…';
@@ -1615,9 +1662,10 @@ function hostReconcile(){
       if(pl){pl.pid=p.peer;pl.human=true;pl.remote=true;pl.away=false;pl.afk=false;pl.lastActTick=G.tick;T[p.peer]=pl.team?'blue':'red';NET.wantSeen[p.peer]=p.presence.want;
         const r=(NET.ro||[]).find(r=>r[0]===a.pid);if(r)r[0]=p.peer;sendSys(`${pl.name} maça geri döndü.`);}
       delete NET.away[p.presence.u];ch=true;}
+    if(NET.cfg.qteams&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'){const want=NET.cfg.qteams[p.presence.u]||'spec';if(T[p.peer]!==want){T[p.peer]=want;ch=true;}}
     if(NET.cfg.lteam&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'){const tid=p.presence.tid;const want=tid&&tid===NET.cfg.home?'red':tid&&tid===NET.cfg.away?'blue':'spec';if(T[p.peer]!==want){T[p.peer]=want;ch=true;}}
     const w=p.presence.want;
-    if(!NET.cfg.lteam&&(w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
+    if(!NET.cfg.lteam&&!NET.cfg.qteams&&(w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
       const pc=Object.entries(T).filter(([k,v])=>k!==p.peer&&(v==='red'||v==='blue')).length+NET.bots.length;
       if((NET.cfg.free||p.sameTab)&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'&&T[p.peer]!==w&&(w==='spec'||T[p.peer]==='red'||T[p.peer]==='blue'||pc<NET.cfg.max)){T[p.peer]=w;ch=true;}}
     if(!p.sameTab&&T[p.peer]!=='full'&&T[p.peer]!=='kicked')rtcHostEnsure(p.peer);

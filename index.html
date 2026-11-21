@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=2fca585">
+<link rel="stylesheet" href="style.css?v=d5eb62d">
 </head>
 <body>
 
@@ -63,6 +63,11 @@
       <div class="quickmatch">
         <button class="big" id="quickBtn">Hızlı eşleş</button>
         <span class="note" style="flex:1 1 200px;margin:0">Boş yeri olan bir odaya seni hemen atar. Uygun oda yoksa senin için yeni bir oda açar.</span>
+      </div>
+      <div class="panel rqueue" id="rqBox">
+        <div class="rqhead"><b>🏆 Dereceli sıra</b><span class="note" id="rqInfo">Seninle aynı seviyedeki oyuncularla otomatik eşleşirsin. Takımlar puana göre dengelenir.</span></div>
+        <div class="rqbtns" id="rqBtns"><button class="chip" data-m="1">1v1</button><button class="chip" data-m="2">2v2</button><button class="chip" data-m="3">3v3</button></div>
+        <div class="rqwait" id="rqWait" hidden><span class="rqspin"></span><span id="rqTxt"></span><button class="chip" id="rqCancel">İptal</button></div>
       </div>
       <div class="cols2">
         <div class="panel">
@@ -305,7 +310,7 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=2fca585"></script>
+<script type="module" src="app.js?v=d5eb62d"></script>
 <div class="invtoast" id="invToast" hidden></div>
 <div class="afktoast" id="afkToast" hidden></div>
 <div class="overlay adminov" id="adminOv" hidden><div class="panel adminpanel"><div class="row" style="justify-content:space-between;align-items:center"><b class="admtitle">Yönetici paneli</b><button class="chip" id="adminClose">Kapat</button></div><div id="adminBody"></div></div></div>
