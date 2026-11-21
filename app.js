@@ -781,6 +781,25 @@ const DB={
     if(!LIVE){const d=MOCKDB.get();const ms=(d.matches||[]).filter(m=>m.user_id===u).reverse();
       return {played:ms.length,goals:ms.reduce((s,m)=>s+m.goals,0),assists:ms.reduce((s,m)=>s+m.assists,0),won:ms.filter(m=>m.result==='W').length,last:ms.slice(0,10)};}
     const {data,error}=await sb.rpc('player_summary',{p_user:u});if(error)throw error;return data;},
+  async leagueMatches(){
+    if(!LIVE){return (MOCKDB.get().lm||[]).slice();}
+    const since=new Date(Date.now()-14*864e5).toISOString();
+    const {data,error}=await sb.from('league_matches').select('*').or(`status.in.(proposed,accepted,reported),updated_at.gte.${since}`).order('scheduled_at').limit(300);if(error)throw error;return data;},
+  async leagueRpc(fn,args){
+    if(!LIVE){const d=MOCKDB.get();d.lm=d.lm||[];const my=d.members.find(m=>m.user_id===uid);const myT=my&&my.team_id,cap=my&&my.role==='kaptan'?myT:null;const now=new Date().toISOString();
+      const m=args.p_match&&d.lm.find(x=>x.id===args.p_match);
+      if(fn==='propose_league_match'){if(!cap)throw new Error('only captains can propose');const t1=d.teams[cap],t2=d.teams[args.p_opp];if(!t2||t1.tier!==t2.tier)throw new Error('teams are in different tiers');
+        if(d.lm.some(x=>['proposed','accepted','reported'].includes(x.status)&&[x.home,x.away].includes(cap)&&[x.home,x.away].includes(args.p_opp)))throw new Error('there is already an open match between these teams');
+        d.lm.push({id:'m'+rcode()+rcode(),home:cap,away:args.p_opp,tier:t1.tier,scheduled_at:args.p_when,status:'proposed',home_score:null,away_score:null,reported_by:null,updated_at:now});}
+      else if(!m)throw new Error('no such match');
+      else if(fn==='respond_league_match'){if(m.away!==cap)throw new Error('only the invited captain can respond');m.status=args.p_accept?'accepted':'declined';}
+      else if(fn==='cancel_league_match'){if(![m.home,m.away].includes(cap))throw new Error('only captains of these teams can cancel');m.status='cancelled';}
+      else if(fn==='report_league_result'){if(![m.home,m.away].includes(myT)||m.status!=='accepted')throw new Error('match is not open for a result');Object.assign(m,{status:'reported',home_score:args.p_home,away_score:args.p_away,reported_by:myT});}
+      else if(fn==='confirm_league_result'){if(!cap||cap===m.reported_by||![m.home,m.away].includes(cap))throw new Error('only the other captain can confirm');
+        if(!args.p_ok)Object.assign(m,{status:'accepted',home_score:null,away_score:null,reported_by:null});
+        else{const up=(id,f,a)=>{const t=d.teams[id];const pt=f>a?3:f===a?1:0;t.points+=pt;t.played++;t.won+=pt===3;t.drawn+=pt===1;t.lost+=pt===0;t.gf+=f;t.ga+=a;};up(m.home,m.home_score,m.away_score);up(m.away,m.away_score,m.home_score);m.status='played';}}
+      if(m)m.updated_at=now;MOCKDB.put(d);return;}
+    const {data,error}=await sb.rpc(fn,args);if(error)throw error;return data;},
   async updateKit(teamId,kit){
     if(!LIVE){const d=MOCKDB.get();if(d.teams[teamId])d.teams[teamId].kit=kit;MOCKDB.put(d);return;}
     const {error}=await sb.from('teams').update({kit}).eq('id',teamId);if(error)throw error;},
@@ -791,6 +810,8 @@ const errText=e=>{const m=(e&&(e.message||e.error_description))||String(e);
   if(/team is full/i.test(m))return 'Takım dolu (en fazla 12 kişi).';
   if(/no team with this code/i.test(m))return 'Bu kodla bir takım yok.';
   if(/fetch|network/i.test(m))return 'Sunucuya ulaşılamadı. Bağlantını kontrol et.';
+  const LE={'only captains can propose':'Maç teklifini yalnızca kaptan yapabilir.','different tiers':'Takımlar aynı ligde değil.','between 10 minutes and 21 days':'Saat en az 10 dakika, en fazla 21 gün sonrası olmalı.','already an open match':'Bu takımla zaten açık bir maçınız var.','only the invited captain':'Bu teklife yalnızca davet edilen kaptan cevap verebilir.','not open for a result':'Bu maç için şu an skor girilemez.','has not started yet':'Maç saati gelmeden skor girilemez.','only the other captain':'Skoru rakip takımın kaptanı onaylamalı.','cannot be cancelled':'Bu maç artık iptal edilemez.','only captains of these teams':'Bunu yalnızca iki takımın kaptanı yapabilir.'};
+  for(const k in LE)if(m.includes(k))return LE[k];
   return m;};
 
 // =====================================================================
@@ -895,7 +916,8 @@ const NET={lobby:null,room:null,code:null,isHost:false,state:'off',
   joinedAt:0,hostSeenAt:0,roKey:null,snap:null,snapN:-1,lastSnap:null,lastIn:'',lastInAt:0,lastChatAt:0,botN:0,menuFor:null,pubN:0};
 const QUICK=['Pas ver!','Geri dön!','Şut çek!','Benim!','Güzel!','Kaleye!','😂','GG'];
 const KITS=[{n:'Kırmızı',a:'KRM',p:'#d63a2a',s:'#ffffff',pat:'solid'},{n:'Mavi',a:'MAV',p:'#2a62d6',s:'#ffffff',pat:'solid'},{n:'Sarı-Lacivert',a:'SRL',p:'#f2c230',s:'#0e2a5c',pat:'hoop'},{n:'Yeşil-Beyaz',a:'YŞB',p:'#1f9d55',s:'#ffffff',pat:'stripes'},{n:'Siyah-Beyaz',a:'SYB',p:'#111111',s:'#ffffff',pat:'stripes'},{n:'Mor',a:'MOR',p:'#7b3fd1',s:'#e64a8f',pat:'sash'},{n:'Turuncu',a:'TRN',p:'#ff7a1a',s:'#111111',pat:'half'},{n:'Bordo-Mavi',a:'BRM',p:'#7a1f2b',s:'#18b6c9',pat:'half'}];
-const kitOf=i=>{const k=KITS[i]||KITS[0];return {name:k.n,abbr:k.a,p:k.p,s:k.s,pat:k.pat};};
+const kitOf=i=>{if(i&&typeof i==='object'){const c=cleanKit(i);return {name:cleanStr(i.name,24)||'Takım',abbr:cleanTag(i.abbr)||'TKM',...c};}const k=KITS[i]||KITS[0];return {name:k.n,abbr:k.a,p:k.p,s:k.s,pat:k.pat};};
+const leagueCode=id=>{const a='abcdefghjkmnpqrstuvwxyz23456789';let h=0;for(const ch of String(id))h=(h*31+ch.charCodeAt(0))>>>0;let s='';for(let i=0;i<4;i++){s+=a[h%a.length];h=Math.floor(h/a.length)+i*7919;}return s;};
 let roomDraft={map:'classic',max:4,time:180,goals:3};
 const randCode=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;};
 // rAF arka plandaki sekmede durur; ağ olayları için setTimeout kullanılır
@@ -996,7 +1018,7 @@ function createRoom(cfg){
   NET.isHost=true;
   NET.cfg={kits:[0,1],free:true,skin:SKINS[prof.skin]?prof.skin:'classic',...cfg};
   NET.teams={};NET.wantSeen={};NET.bots=[];NET.phase='lobby';NET.ro=null;NET.want='red';
-  enterRoom(randCode());
+  enterRoom(cfg.code||randCode());
 }
 $('createRoom').onclick=()=>createRoom({name:cleanStr($('inRoomName').value,28).trim()||(prof.name+' odası'),map:roomDraft.map,max:roomDraft.max,time:roomDraft.time,goals:roomDraft.goals,priv:$('rdPriv').checked});
 $('joinCode').onclick=()=>{const c=cleanStr($('inCode').value,6).toLowerCase().replace(/[^a-z0-9]/g,'');if(c.length===4)enterRoom(c);else $('netMsg').textContent='Oda kodu 4 karakter olmalı.';};
@@ -1040,7 +1062,7 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 
 function pushRoom(){
   if(!NET.room)return;
-  const pr={nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,want:NET.want,ready:NET.ready,chat:NET.roomChat};
+  const pr={nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
   if(NET.isHost)Object.assign(pr,{H:1,code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
@@ -1053,8 +1075,9 @@ function hostReconcile(){
   for(const k of Object.keys(T))if(!ids.has(k)){delete T[k];delete NET.wantSeen[k];delete NET.inputs[k];rtcDrop(k);ch=true;}
   for(const p of ps){
     if(!(p.peer in T)){const n=Object.values(T).filter(v=>v!=='full'&&v!=='kicked').length;T[p.peer]=n>=NET.cfg.max?'full':'spec';ch=true;}
+    if(NET.cfg.league&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'){const tid=p.presence.tid;const want=tid&&tid===NET.cfg.home?'red':tid&&tid===NET.cfg.away?'blue':'spec';if(T[p.peer]!==want){T[p.peer]=want;ch=true;}}
     const w=p.presence.want;
-    if((w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
+    if(!NET.cfg.league&&(w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
       if((NET.cfg.free||p.sameTab)&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'&&T[p.peer]!==w){T[p.peer]=w;ch=true;}}
     if(!p.sameTab&&T[p.peer]!=='full'&&T[p.peer]!=='kicked')rtcHostEnsure(p.peer);
   }
@@ -1095,7 +1118,7 @@ function renderRoom(){
   if(!v){$('rName').textContent='Odaya bağlanılıyor…';$('rMeta').textContent='';$('rStatus').textContent='Oda sahibi bekleniyor.';return;}
   const cfg=v.cfg,kits=[kitOf(cfg.kits?cfg.kits[0]:0),kitOf(cfg.kits?cfg.kits[1]:1)];
   $('rName').textContent=cleanStr(cfg.name,28)||'Oda';
-  $('rMeta').textContent=`${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
+  $('rMeta').textContent=`${cfg.league?'🏆 Lig maçı · ':''}${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
   const ps=named(NET.room.peers());const cols={red:[],spec:[],blue:[]};
   for(const p of ps){const t=v.teams[p.peer]||'spec';if(t==='full'||t==='kicked')continue;(cols[t]||cols.spec).push({p});}
   for(const b of v.bots){if(b&&(b.team===0||b.team===1))cols[b.team===0?'red':'blue'].push({bot:b});}
@@ -1117,7 +1140,7 @@ function renderRoom(){
         if(NET.isHost)c.onclick=()=>openPlayerMenu(it.p.peer,cleanStr(pr.nick,14),pr.u,pr.tg);else{c.style.cursor='pointer';c.onclick=()=>openStats(pr.u,cleanStr(pr.nick,14),pr.tg);}}
       c.append(av,nm,st);list.appendChild(c);});
     const jb=col.querySelector('.join');const myT=v.teams[v.me]||'spec';
-    jb.disabled=myT===key||v.phase!=='lobby'||(!cfg.free&&!NET.isHost);
+    jb.disabled=myT===key||v.phase!=='lobby'||(!cfg.free&&!NET.isHost);jb.hidden=!!cfg.league&&key!=='spec';
     jb.title=!cfg.free&&!NET.isHost?'Takımları oda sahibi dağıtıyor':'';
   });
   const st=$('rStatus');st.innerHTML='';
@@ -1250,6 +1273,8 @@ function showEnd(){
   $('endMsg').textContent=my<0?(a===c?'Berabere.':(a>c?G.kits[0].name:G.kits[1].name)+' kazandı.'):((my===0?a>c:c>a)?'Kazandınız!':a===c?'Berabere.':'Kaybettiniz. Rövanş isteyin.');
   $('againBtn').textContent='Odaya dön';$('endMenu').textContent='Odadan çık';renderEndStats();$('endOv').hidden=false;
   recordMyMatch();adAfterMatch();
+  const lc=NET.isHost?NET.cfg:(hostPeerOf(NET.room)||{presence:{}}).presence.cfg;
+  if(lc&&lc.league&&my>=0)DB.leagueRpc('report_league_result',{p_match:lc.league,p_home:a,p_away:c}).then(()=>{$('endMsg').textContent+=' Lig skoru kaydedildi, rakip kaptanın onayı bekleniyor.';}).catch(()=>{});
 }
 
 // ---------- Oyun içi sohbet ----------
@@ -1393,20 +1418,73 @@ async function renderTeam(){
 // ---------- Lig sekmesi ----------
 // =====================================================================
 const TIER_NAMES=['Elit Lig','2. Lig','3. Lig','4. Lig','5. Lig','6. Lig'];
+const fmtWhen=iso=>{const d=new Date(iso);const now=new Date();const day=d.toDateString()===now.toDateString()?'Bugün':d.toDateString()===new Date(now.getTime()+864e5).toDateString()?'Yarın':d.toLocaleDateString('tr-TR',{day:'numeric',month:'short',weekday:'short'});return day+' '+d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});};
+const LM_ST={proposed:'Teklif',accepted:'Kesinleşti',reported:'Onay bekliyor',played:'Oynandı',declined:'Reddedildi',cancelled:'İptal'};
+function joinLeagueMatch(m,TT){
+  const code=leagueCode(m.id);const h=TT[m.home],a=TT[m.away];if(!h||!a)return;
+  showMain('rooms');
+  if(lobbyRooms().some(r=>r.code===code)){NET.want='spec';enterRoom(code);return;}
+  createRoom({code,name:`${h.abbr} – ${a.abbr} · Lig`,map:'classic',max:12,time:300,goals:0,priv:true,free:false,league:m.id,home:m.home,away:m.away,
+    kits:[{name:h.name,abbr:h.abbr,...cleanKit(h.kit)},{name:a.name,abbr:a.abbr,...cleanKit(a.kit)}]});
+}
 async function renderLeague(){
   const box=$('leagueGrid');box.innerHTML='<p class="note">Yükleniyor…</p>';
-  let ts,mt;try{[ts,mt]=await Promise.all([DB.teams(),DB.myTeam().catch(()=>null)]);}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='Lig bilgisi alınamadı: '+errText(e);box.appendChild(p);return;}
-  myTeamCache=mt;box.innerHTML='';const myId=mt&&mt.team&&mt.team.id;
+  let ts,mt,lm;try{[ts,mt,lm]=await Promise.all([DB.teams(),DB.myTeam().catch(()=>null),DB.leagueMatches().catch(()=>[])]);}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='Lig bilgisi alınamadı: '+errText(e);box.appendChild(p);return;}
+  myTeamCache=mt;box.innerHTML='';const myId=mt&&mt.team&&mt.team.id;const cap=mt&&mt.role==='kaptan';
+  const TT={};ts.forEach(t=>TT[t.id]=t);const tn=id=>TT[id]?TT[id].name:'?';
+  const act=async(fn,args,msgEl)=>{try{await DB.leagueRpc(fn,args);renderLeague();}catch(e){if(msgEl)msgEl.textContent=errText(e);}};
+  const btn=(txt,cls,fn)=>{const b=document.createElement('button');b.className='chip'+(cls?' '+cls:'');b.textContent=txt;b.onclick=fn;return b;};
+  // ---- Maçlarım ----
+  if(myId){const me=TT[myId]||mt.team;const sec=document.createElement('section');sec.className='lmine';
+    sec.innerHTML='<h3>Takımımın maçları</h3><div class="lmlist"></div><p class="err lmmsg"></p>';const list=sec.querySelector('.lmlist'),msg=sec.querySelector('.lmmsg');
+    const mine=lm.filter(m=>m.home===myId||m.away===myId).filter(m=>['proposed','accepted','reported'].includes(m.status)||Date.now()-new Date(m.updated_at).getTime()<3*864e5);
+    if(!mine.length)list.innerHTML='<p class="note">Henüz planlanmış maçınız yok.'+(cap?' Aşağıdan bir rakibe gün ve saat teklif et.':' Kaptanınız rakiplere maç teklif edebilir.')+'</p>';
+    mine.forEach(m=>{const row=document.createElement('div');row.className='lmrow st-'+m.status;const home=m.home===myId;const opp=home?m.away:m.home;
+      const t=new Date(m.scheduled_at).getTime(),now=Date.now();
+      row.innerHTML='<div class="lmwhen"></div><div class="lmteams"></div><span class="lmst"></span><div class="lmact"></div>';
+      row.querySelector('.lmwhen').textContent=fmtWhen(m.scheduled_at);
+      row.querySelector('.lmteams').textContent=`${tn(m.home)} ${m.home_score!=null?m.home_score+' – '+m.away_score:'vs'} ${tn(m.away)}`;
+      row.querySelector('.lmst').textContent=LM_ST[m.status]||m.status;
+      const A=row.querySelector('.lmact');
+      if(m.status==='proposed'){if(cap&&!home){A.append(btn('Kabul et','go',()=>act('respond_league_match',{p_match:m.id,p_accept:true},msg)),btn('Reddet','',()=>act('respond_league_match',{p_match:m.id,p_accept:false},msg)));}
+        else{const s=document.createElement('span');s.className='note';s.textContent=home?'Rakip kaptanın cevabı bekleniyor':'Kaptanınızın cevabı bekleniyor';A.append(s);if(cap&&home)A.append(btn('Geri çek','',()=>act('cancel_league_match',{p_match:m.id},msg)));}}
+      if(m.status==='accepted'){if(now>t-15*60e3)A.append(btn('Maça gir','go',()=>joinLeagueMatch(m,TT)));
+        else{const s=document.createElement('span');s.className='note';const mins=Math.round((t-now)/60e3);s.textContent=mins<120?`${mins} dk sonra`:`Maç odası 15 dk önce açılır`;A.append(s);}
+        if(cap&&now<t)A.append(btn('İptal','',()=>act('cancel_league_match',{p_match:m.id},msg)));
+        if(now>t-30*60e3){A.append(btn('Skoru elle gir','',()=>{const v=prompt(`${tn(m.home)} – ${tn(m.away)} skoru (örnek 3-2):`);const r=v&&v.match(/^\s*(\d{1,2})\s*[-–: ]\s*(\d{1,2})\s*$/);if(r)act('report_league_result',{p_match:m.id,p_home:+r[1],p_away:+r[2]},msg);}));}}
+      if(m.status==='reported'){if(cap&&m.reported_by!==myId)A.append(btn('Skoru onayla','go',()=>act('confirm_league_result',{p_match:m.id,p_ok:true},msg)),btn('İtiraz et','',()=>act('confirm_league_result',{p_match:m.id,p_ok:false},msg)));
+        else{const s=document.createElement('span');s.className='note';s.textContent='Rakip kaptanın onayı bekleniyor';A.append(s);}}
+      list.appendChild(row);});
+    if(cap){const opps=ts.filter(t=>t.tier===me.tier&&t.id!==myId&&!lm.some(m=>['proposed','accepted','reported'].includes(m.status)&&[m.home,m.away].includes(t.id)&&[m.home,m.away].includes(myId)));
+      const f=document.createElement('form');f.className='lmform';
+      const d=new Date(Date.now()+864e5);d.setMinutes(0,0,0);d.setHours(21);const loc=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+      f.innerHTML=`<b>Maç teklif et</b><select required><option value="">Rakip seç (${me.tier}. Kademe)</option></select><input type="datetime-local" required value="${loc}"><button class="big" type="submit">Teklif gönder</button>`;
+      const sel=f.querySelector('select');opps.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=`${t.name} (${t.abbr})`;sel.appendChild(o);});
+      if(!opps.length){sel.disabled=true;sel.options[0].textContent='Bu ligde teklif edilecek rakip yok';}
+      f.onsubmit=e=>{e.preventDefault();const w=new Date(f.querySelector('input').value);if(!sel.value||isNaN(w))return;act('propose_league_match',{p_opp:sel.value,p_when:w.toISOString()},msg);};
+      sec.appendChild(f);}
+    box.appendChild(sec);}
+  // ---- Ligler ----
   for(let tier=1;tier<=6;tier++){
     const list=ts.filter(t=>t.tier===tier).sort((a,b)=>b.points-a.points||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
     const sec=document.createElement('section');sec.className='ltier'+(list.some(t=>t.id===myId)?' mine':'');
     sec.innerHTML=`<header><img src="assets/tier${tier}.webp" alt=""><b>${tier}. Kademe · ${TIER_NAMES[tier-1]}</b><span>${list.length} takım${tier===1?' · şampiyonluk':tier===6?' · herkes buradan başlar':' · ↑ ilk 2 · ↓ son 2'}</span></header>`;
     if(list.length){const wrap=document.createElement('div');wrap.style.overflowX='auto';const tb=document.createElement('table');
       tb.innerHTML='<tr><th>#</th><th>Takım</th><th class="n">O</th><th class="n">G</th><th class="n">B</th><th class="n">M</th><th class="n">AV</th><th class="n">P</th></tr>';
-      list.forEach((t,i)=>{const tr=document.createElement('tr');if(t.id===myId)tr.className='me';
+      const zones=list.length>=5;
+      list.forEach((t,i)=>{const tr=document.createElement('tr');const cls=[];if(t.id===myId)cls.push('me');
+        if(zones&&tier>1&&i<2)cls.push('zup');if(zones&&tier<6&&i>=list.length-2)cls.push('zdown');if(zones&&tier===1&&i===0)cls.push('zchamp');tr.className=cls.join(' ');
         tr.innerHTML=`<td>${i+1}</td><td></td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.gf-t.ga}</td><td class="n">${t.points}</td>`;
         tr.children[1].textContent=t.name+' ('+t.abbr+')';tb.appendChild(tr);});
-      wrap.appendChild(tb);sec.appendChild(wrap);}
+      wrap.appendChild(tb);sec.appendChild(wrap);
+      const fx=lm.filter(m=>m.tier===tier&&(m.status==='accepted'||m.status==='played'||m.status==='reported')).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
+      const up=fx.filter(m=>m.status!=='played').slice(0,6),done=fx.filter(m=>m.status==='played').slice(-6).reverse();
+      if(up.length||done.length){const fb=document.createElement('div');fb.className='lfix';
+        const add=(m,label)=>{const r=document.createElement('div');r.className='lfrow'+(m.home===myId||m.away===myId?' me':'');r.innerHTML='<span class="w"></span><span class="h"></span><b></b><span class="a"></span>';
+          r.querySelector('.w').textContent=label;r.querySelector('.h').textContent=tn(m.home);r.querySelector('b').textContent=m.home_score!=null?`${m.home_score} – ${m.away_score}`:'vs';r.querySelector('.a').textContent=tn(m.away);fb.appendChild(r);};
+        if(up.length){const h=document.createElement('div');h.className='lfh';h.textContent='Fikstür';fb.appendChild(h);up.forEach(m=>add(m,fmtWhen(m.scheduled_at)));}
+        if(done.length){const h=document.createElement('div');h.className='lfh';h.textContent='Son sonuçlar';fb.appendChild(h);done.forEach(m=>add(m,new Date(m.scheduled_at).toLocaleDateString('tr-TR',{day:'numeric',month:'short'})));}
+        sec.appendChild(fb);}}
     box.appendChild(sec);}
 }
 
