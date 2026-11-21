@@ -125,7 +125,7 @@ window.__uzk={G:()=>G,step:()=>step(),keys:()=>keys};
 const P_ACC=0.1,P_ACC_K=0.07,P_DAMP=0.96,B_DAMP=0.99,KICK=5;
 const DIFF=[{acc:0.82,react:14,noise:0.55,kick:0.25},{acc:0.94,react:7,noise:0.28,kick:0.55},{acc:1.0,react:3,noise:0.12,kick:0.85}];
 const BOT_NAMES=['Kaan','Mert','Efe','Arda','Deniz','Barış','Ozan','Emir','Can','Umut'];
-let G=null;if(location.hash==="#dbg"){window.__G=()=>G;window.__wx=()=>bolt;window.__amb=()=>AMB;} // yerel test için
+let G=null;if(location.hash==="#dbg"){window.__G=()=>G;window.__N=()=>NET;window.__wx=()=>bolt;window.__amb=()=>AMB;} // yerel test için
 
 
 // Haxball gibi: herkes kendi yarısında SPAWN çizgisinde, 0, +55, -55, +110 ... dizilir
@@ -167,7 +167,7 @@ function startMatch(opt={}){
   show('game');$('endOv').hidden=true;$('pauseOv').hidden=true;
   $('againBtn').textContent=G.net?'Odaya dön':'Rövanş';$('endMenu').textContent=G.net?'Odadan çık':'Menü';
   $('resumeBtn').textContent='Devam';$('quitBtn').textContent=G.net?'Maçı bitir, odaya dön':'Maçı bırak';
-  resize();renderHud();sWhistle(0.45,1);
+  resize();renderHud();if(!opt.silent)sWhistle(0.45,1);
   last=performance.now();acc=0;
   if(G.net&&G.net.role==='host')ensureBgTicker();
 }
@@ -364,8 +364,9 @@ function step(){
   if(G.tick%10===0){aiAssign(0);aiAssign(1);}
   G.tick=(G.tick||0)+1;
   const NI=G.net?netHostInputs():null;
-  for(const p of G.players){if(p.local)humanInput(p);else if(p.human){const i=NI&&NI[p.pid];if(Array.isArray(i)){p.ix=Math.max(-1,Math.min(1,Number(i[0])/10||0));p.iy=Math.max(-1,Math.min(1,Number(i[1])/10||0));p.kick=!!i[2];}else{p.ix=p.iy=0;p.kick=false;}}else aiThink(p);}
+  for(const p of G.players){if(p.local)humanInput(p);else if(p.human){const i=NI&&NI[p.pid];if(Array.isArray(i)){const ik=i.join();if(ik!==p.lastKey){p.lastKey=ik;p.lastActTick=G.tick;}p.ix=Math.max(-1,Math.min(1,Number(i[0])/10||0));p.iy=Math.max(-1,Math.min(1,Number(i[1])/10||0));p.kick=!!i[2];}else{p.ix=p.iy=0;p.kick=false;}}else aiThink(p);}
   integrate(true);
+  if(G.net&&G.net.role==='host'&&G.tick%30===0)afkCheck();
   if(!G.kickoff&&!G.golden&&!G.training){G.clock-=1/60;if(G.clock<=0){G.clock=0;if(G.score[0]!==G.score[1]){sWhistle(0.5,3);endMatch();return;}else{G.golden=true;}}}
   if(G.drill){drillTick();if(!G||G.state==='over')return;}
   if(Math.abs(G.ball.x)>FW+G.ball.r&&Math.abs(G.ball.y)<GH){if(G.drill)drillGoal(G.ball.x>0?0:1);else goal(G.ball.x>0?0:1);}
@@ -1207,8 +1208,9 @@ function rtcSetupDc(peer,dc){
   dc.onopen=()=>{RTC.dcs.set(peer,dc);schedule(renderRoom);};
   dc.onclose=()=>{RTC.dcs.delete(peer);schedule(renderRoom);};
   dc.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}
-    if(NET.isHost){if(Array.isArray(m.in))NET.inputs[peer]=m.in;}
-    else if(m.g)acceptSnap(m.g);};
+    if(NET.isHost){if(Array.isArray(m.in))NET.inputs[peer]=m.in;if(typeof m.pi==='number'){try{dc.send(JSON.stringify({po:m.pi}));}catch(_){}}}
+    else if(m.g)acceptSnap(m.g);
+    else if(typeof m.po==='number'){const r=performance.now()-m.po;if(r>=0&&r<5000){NET.ping=NET.ping?Math.round(NET.ping*0.6+r*0.4):Math.round(r);}}};
 }
 function rtcHostEnsure(peer){ // oda sahibi her oyuncuya bağlantı teklif eder
   if(RTC.pcs.has(peer)||typeof RTCPeerConnection==='undefined')return;
@@ -1303,7 +1305,7 @@ function renderOnline(){
     b.onclick=()=>{NET.watch=r.ph==='game';enterRoom(r.code);};
     if(r.ph==='game'){const w=document.createElement('span');w.className='watch';w.textContent='👁 İzle';b.appendChild(w);}
     list.appendChild(b);});
-  renderChat('lobby',NET.lobby,$('lcLog'));renderFriends();
+  renderChat('lobby',NET.lobby,$('lcLog'));renderFriends();renderRejoin();
   const ol=$('onlineList');ol.innerHTML='';
   ps.sort((x,y)=>(y.sameTab?1:0)-(x.sameTab?1:0)).slice(0,60).forEach(p=>{const pr=p.presence;const b=document.createElement('button');b.type='button';b.className='oplayer';
     const av=document.createElement('span');av.className='av';av.textContent=cleanStr(pr.av,2)||'?';
@@ -1329,8 +1331,8 @@ const leaveBanLeft=()=>MOD.leave_ban_until?Math.max(0,new Date(MOD.leave_ban_unt
 function leaveBanMsg(){const ms=leaveBanLeft();const m=Math.floor(ms/60e3),s2=Math.ceil(ms%60e3/1e3);return `Maçı yarıda bıraktığın için ${m?m+' dk ':''}${s2} sn daha maç bulamazsın. Bu sürede antrenman yapabilir ya da maç izleyebilirsin.`;}
 const inRankedMatch=()=>!!(G&&G.ranked&&!G.ended&&G.state!=='over');
 async function refreshAfterLeave(){try{Object.assign(MOD,await DB.restrictions());}catch(e){}try{const r=await DB.myRating();MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};}catch(e){}renderMe();pushLobby();}
-async function penalizeLeave(){if(!G||!G.ranked)return;G.ranked=false;try{await DB.matchDone('leave');}catch(e){}await refreshAfterLeave();$('netMsg').textContent='Maçı yarıda bıraktın: −20 beceri puanı ve 1 dakika maç bulma cezası.';}
-function clearRanked(reason){if(!G||!G.ranked)return;G.ranked=false;DB.matchDone(reason).catch(()=>{});}
+async function penalizeLeave(){clearLastMatch();if(!G||!G.ranked)return;G.ranked=false;try{await DB.matchDone('leave');}catch(e){}await refreshAfterLeave();$('netMsg').textContent='Maçı yarıda bıraktın: −20 beceri puanı ve 1 dakika maç bulma cezası.';}
+function clearRanked(reason){clearLastMatch();if(!G||!G.ranked)return;G.ranked=false;DB.matchDone(reason).catch(()=>{});}
 function confirmLeave(){return window.confirm('Maç sürüyor. Şimdi çıkarsan beceri puanından 20 düşer ve 1 dakika maç bulamazsın. Yine de çıkmak istiyor musun?');}
 addEventListener('beforeunload',e=>{if(inRankedMatch()){e.preventDefault();e.returnValue='';}});
 // ---------- Beceri puanı ----------
@@ -1479,6 +1481,7 @@ async function enterRoom(code,autoTeam){
   rtcReset();
   room.on('sig',rtcOnSignal);
   room.on('g',d=>{if(!NET.isHost&&d&&d.to===undefined)acceptSnap(d);});
+  room.on('afkw',d=>{if(d&&d.to===TAB&&G&&G.net)afkToast('Hareket etmiyorsun! 10 saniye içinde hareket etmezsen izleyiciye alınacaksın ve ceza alacaksın.',8000);});
   room.on('in',d=>{if(NET.isHost&&d&&typeof d.from==='string'&&Array.isArray(d.q))NET.inputs[d.from]=d.q;});
   room.onPeers(()=>schedule(onRoomPeers));
   pushRoom();pushLobby();
@@ -1501,8 +1504,8 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 
 function pushRoom(){
   if(!NET.room)return;
-  const pr={nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
-  if(NET.isHost)Object.assign(pr,{H:1,code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
+  const pr={pn:NET.isHost?0:(NET.ping||0),nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
+  if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:avgPing(),afk:NET.afk||[],code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
 const hostPeerOf=r=>r?named(r.peers()).find(p=>p.presence.H===1&&p.presence.code===NET.code):null;
@@ -1512,10 +1515,20 @@ function hostHumanCount(){if(!NET.room)return 0;return named(NET.room.peers()).f
 // ---------- Host: takım düzeni ----------
 function hostReconcile(){
   const ps=named(NET.room.peers());const ids=new Set(ps.map(p=>p.peer));const T=NET.teams;let ch=false;
-  for(const k of Object.keys(T))if(!ids.has(k)){delete T[k];delete NET.wantSeen[k];delete NET.inputs[k];rtcDrop(k);ch=true;}
+  NET.peerUid=NET.peerUid||{};NET.away=NET.away||{};
+  const inGame=NET.phase==='game'&&G&&G.net&&G.net.role==='host';
+  for(const k of Object.keys(T))if(!ids.has(k)){
+    if(inGame){const pl=G.players.find(x=>x.pid===k&&x.human&&!x.local);const u=NET.peerUid[k];
+      if(pl){pl.human=false;pl.remote=false;pl.away=true;if(u)NET.away[u]={pid:k,at:Date.now()};sendSys(`${pl.name} bağlantısı koptu; dönene kadar yerine bot oynuyor.`);}}
+    delete T[k];delete NET.wantSeen[k];delete NET.inputs[k];rtcDrop(k);ch=true;}
+  for(const p of ps){if(p.presence.u)NET.peerUid[p.peer]=p.presence.u;}
   for(const p of ps){
     if(!(p.peer in T)){const n=Object.values(T).filter(v=>v!=='full'&&v!=='kicked').length;T[p.peer]=n>=NET.cfg.max+8?'full':'spec';ch=true;}
     if(Array.isArray(NET.cfg.bans)&&p.presence.u&&NET.cfg.bans.includes(p.presence.u)&&T[p.peer]!=='kicked'&&!p.sameTab){T[p.peer]='kicked';ch=true;}
+    if(inGame&&!p.sameTab&&p.presence.u&&NET.away[p.presence.u]&&T[p.peer]!=='kicked'){const a=NET.away[p.presence.u];const pl=G.players.find(x=>x.pid===a.pid);
+      if(pl){pl.pid=p.peer;pl.human=true;pl.remote=true;pl.away=false;pl.afk=false;pl.lastActTick=G.tick;T[p.peer]=pl.team?'blue':'red';NET.wantSeen[p.peer]=p.presence.want;
+        const r=(NET.ro||[]).find(r=>r[0]===a.pid);if(r)r[0]=p.peer;sendSys(`${pl.name} maça geri döndü.`);}
+      delete NET.away[p.presence.u];ch=true;}
     if(NET.cfg.lteam&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'){const tid=p.presence.tid;const want=tid&&tid===NET.cfg.home?'red':tid&&tid===NET.cfg.away?'blue':'spec';if(T[p.peer]!==want){T[p.peer]=want;ch=true;}}
     const w=p.presence.want;
     if(!NET.cfg.lteam&&(w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
@@ -1527,12 +1540,13 @@ function hostReconcile(){
 }
 function onRoomPeers(){
   if(!NET.room)return;
-  if(NET.isHost){if(hostReconcile())pushRoom();pushLobby();}
+  if(NET.isHost){if(checkDualHost())return onRoomPeers();if(hostReconcile())pushRoom();pushLobby();}
   else{
     const h=hostPeerOf(NET.room);
-    if(h){NET.hostSeenAt=Date.now();const t=h.presence.teams&&h.presence.teams[TAB];
+    if(h){NET.hostSeenAt=Date.now();NET.migrateAt=0;rememberHost(h);const t=h.presence.teams&&h.presence.teams[TAB];
       if(t==='kicked'){clearRanked('kick');const bans=(hostPeerOf(NET.room)||{presence:{cfg:{}}}).presence.cfg?.bans;closeRoom(Array.isArray(bans)&&bans.includes(uid)?'Bu odaya girmen oda sahibi tarafından yasaklandı.':'Oda sahibi seni odadan çıkardı.');return;}
       if(t==='full'){closeRoom('Oda dolu.');return;}
+      if(Array.isArray(h.presence.afk)&&h.presence.afk.includes(TAB)&&G&&G.ranked){penalizeLeave();afkToast('Hareketsiz kaldığın için izleyiciye alındın: −20 beceri puanı ve 1 dakika maç bulma cezası.',9000);}
       clientSync(h);}
   }
   const fresh=renderChat('room',NET.room,$('rcLog'))||[];
@@ -1543,9 +1557,75 @@ setInterval(()=>{ // oda sahibi gitti mi?
   if(!NET.room||NET.isHost)return;const now=Date.now();
   // oda sahibi görünüyorsa saati her saniye tazele: varlık bilgisi güncellenirken (ör. maç başlarken) bir an kaybolması odayı kapatmasın
   if(hostPeerOf(NET.room)){NET.hostSeenAt=now;return;}
-  if(!NET.hostSeenAt&&now-NET.joinedAt>10000)closeRoom('Bu kodla açık bir oda bulunamadı.');
-  else if(NET.hostSeenAt&&now-NET.hostSeenAt>12000)closeRoom('Oda sahibi ayrıldı, oda kapandı.');
+  if(!NET.hostSeenAt&&now-NET.joinedAt>10000){if(NET.rejoining===NET.code)clearLastMatch();closeRoom(NET.rejoining===NET.code?'Maç sona ermiş ya da oda kapanmış.':'Bu kodla açık bir oda bulunamadı.');return;}
+  if(NET.hostSeenAt&&now-NET.hostSeenAt>3000&&NET.lastHost){if(!NET.migrateAt)NET.migrateAt=now;if(successorIsMe()){promoteToHost();return;}}
+  if(NET.hostSeenAt&&now-NET.hostSeenAt>15000)closeRoom('Oda sahibi ayrıldı ve oda devralınamadı, oda kapandı.');
 },1000);
+
+// ---------- Gecikme ölçümü ve oda sahibi devri ----------
+setInterval(()=>{if(!NET.room||NET.isHost)return;const h=hostPeerOf(NET.room);const dc=h&&dcOpen(h.peer);if(dc){try{dc.send(JSON.stringify({pi:performance.now()}));}catch(e){}}else if(h)NET.ping=0;},2000);
+setInterval(()=>{if(NET.room&&!NET.isHost&&NET.ping)pushRoom();if(NET.room&&NET.isHost)pushLobby();},6000);
+function avgPing(){if(!NET.room)return 0;const a=named(NET.room.peers()).filter(p=>!p.presence.H&&p.presence.pn>0).map(p=>p.presence.pn);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;}
+function rememberHost(h){const pr=h.presence;NET.lastHost={peer:h.peer,cfg:pr.cfg,teams:pr.teams||{},bots:Array.isArray(pr.bots)?pr.bots:[],phase:pr.phase,ro:pr.ro};}
+function successorIsMe(){
+  const L=NET.lastHost;if(!L||!NET.room)return false;
+  const c=named(NET.room.peers()).filter(p=>p.peer!==L.peer&&L.teams[p.peer]!=='full'&&L.teams[p.peer]!=='kicked'&&(p.peer in L.teams||p.sameTab));
+  if(!c.length)return false;
+  c.sort((a,b)=>((a.presence.pn||999)-(b.presence.pn||999))||(a.peer<b.peer?-1:1));
+  return c[0].sameTab;
+}
+function checkDualHost(){ // iki kişi aynı anda devraldıysa önce devralan kalır
+  const o=named(NET.room.peers()).find(p=>!p.sameTab&&p.presence.H===1&&p.presence.code===NET.code);
+  if(!o)return false;const oh=o.presence.hs||0,mh=NET.hostSince||0;
+  if(oh<mh||(oh===mh&&o.peer<TAB)){NET.isHost=false;NET.hostSince=0;NET.roKey=null;if(G&&G.net)G=null;rtcReset();pushRoom();sendSys&&0;return true;}
+  return false;
+}
+function promoteToHost(){
+  const L=NET.lastHost;if(!L||!L.cfg)return;
+  NET.isHost=true;NET.hostSince=Date.now();NET.migrateAt=0;rtcReset();
+  NET.cfg={...L.cfg};NET.teams={...L.teams};delete NET.teams[L.peer];NET.wantSeen={};NET.inputs={};NET.bots=L.bots.map(b=>({...b}));NET.phase=L.phase||'lobby';
+  NET.botN=Math.max(NET.botN||0,...NET.bots.map(b=>Number(String(b.id).slice(1))||0));
+  for(const k of Object.keys(NET.teams)){if(NET.teams[k]==='full')NET.teams[k]='spec';}
+  if(NET.phase==='game'&&Array.isArray(L.ro)&&G&&G.net){
+    const snap=NET.lastSnap||NET.snap||{};const old=G;
+    const ro=L.ro.map(r=>{const x=[...r];if(x[0]===L.peer)x[5]=0;return x;}).filter(r=>r[1]===0||r[1]===1);
+    const roster=ro.map(r=>({pid:String(r[0]),team:r[1],human:!!r[5],local:r[0]===TAB,remote:!!r[5]&&r[0]!==TAB,avatar:cleanStr(r[2],2),name:cleanBad(cleanStr(r[3],14))+(r[0]===L.peer?' (bot)':''),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),rating:Number(r[8])||1000,trail:cleanTrail(r[9]),sr:cleanTier(r[10])}));
+    const mt=NET.teams[TAB];const watching=!$('game').hidden;
+    startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1,silent:1});
+    G.players.forEach((p,i)=>{const op=old.players[i];if(op){p.x=op.x;p.y=op.y;p.g=op.g||0;p.a=op.a||0;}const v=Array.isArray(snap.v)&&snap.v[i];if(v){p.vx=v[0]/100;p.vy=v[1]/100;}});
+    G.ball.x=old.ball.x;G.ball.y=old.ball.y;if(Array.isArray(snap.bv)){G.ball.vx=snap.bv[0]/100;G.ball.vy=snap.bv[1]/100;}
+    G.score=[...old.score];G.clock=old.clock;G.golden=!!old.golden;G.kickoff=snap.ko===1;G.kickTeam=snap.kt===1?1:0;
+    G.state=snap.st==='goal'?'goal':'play';G.stateT=Number(snap.stt)||0;G.gseq=Number(snap.gs)||0;G.kseq=Number(snap.ks)||0;G.ranked=old.ranked;G.goals=old.goals||[];G.rec=old.rec||[];
+    if(!watching)show('roomScr');
+    NET.ro=ro;NET.pubN=(NET.snapN||0)+20;
+  } else if(NET.phase==='game'){NET.phase='lobby';NET.ro=null;}
+  pushRoom();pushLobby();hostReconcile();pushRoom();
+  sendSys(`Oda sahibi ayrıldı. ${prof.name} odayı devraldı${NET.phase==='game'?', maç devam ediyor':''}.`);
+  renderRoom();
+}
+
+// ---------- Hareketsiz (AFK) oyuncu ----------
+const AFK_WARN=20*60,AFK_OUT=30*60;
+function afkCheck(){
+  if(!NET.room||NET.phase!=='game'||!G||G.state!=='play')return;
+  for(const p of G.players){if(!p.human||!p.remote)continue;if(p.lastActTick==null){p.lastActTick=G.tick;continue;}
+    const idle=G.tick-p.lastActTick;
+    if(idle>AFK_WARN&&!p.afkWarned){p.afkWarned=true;NET.room.send('afkw',{to:p.pid});}
+    if(idle<AFK_WARN)p.afkWarned=false;
+    if(idle>AFK_OUT){p.human=false;p.remote=false;p.afk=true;NET.teams[p.pid]='spec';NET.afk=[...(NET.afk||[]),p.pid].slice(-20);
+      sendSys(`${p.name} 30 saniyedir hareket etmediği için izleyiciye alındı; yerine bot oynuyor.`);pushRoom();}}
+}
+function afkToast(t,ms=5000){const el=$('afkToast');if(!el)return;el.textContent=t;el.hidden=false;clearTimeout(el._h);el._h=setTimeout(()=>el.hidden=true,ms);}
+// ---------- Yarıda kalan maça dönüş ----------
+const LASTM='uzk-lastmatch'+SLOT;
+function setLastMatch(code){try{localStorage.setItem(LASTM,JSON.stringify({code,at:Date.now()}));}catch(e){}}
+function clearLastMatch(){try{localStorage.removeItem(LASTM);}catch(e){}renderRejoin();}
+function getLastMatch(){try{const m=JSON.parse(localStorage.getItem(LASTM)||'null');return m&&Date.now()-m.at<15*60e3&&/^[a-z0-9]{4}$/.test(m.code)?m:null;}catch(e){return null;}}
+function renderRejoin(){const box=$('rejoinBox');if(!box)return;const m=getLastMatch();box.hidden=!m||!!NET.room;if(!m)return;box.innerHTML='';
+  const t=document.createElement('span');t.textContent='Yarıda kalan bir maçın var. 15 dakika içinde dönersen ceza almazsın.';
+  const b=document.createElement('button');b.className='big';b.textContent='Maça dön';b.onclick=()=>{NET.rejoining=m.code;enterRoom(m.code);};
+  const x=document.createElement('button');x.className='chip';x.textContent='Dönmeyeceğim';x.onclick=async()=>{clearLastMatch();try{await DB.matchDone('leave');}catch(e){}refreshAfterLeave();$('netMsg').textContent='Maçı bıraktın: −20 beceri puanı ve 1 dakika maç bulma cezası.';};
+  box.append(t,b,x);}
 
 // ---------- Oda ekranı ----------
 function specCount(){try{if(!NET.room)return 0;const v=roomView();if(!v)return 0;return named(NET.room.peers()).filter(p=>(v.teams[p.peer]||'spec')==='spec').length;}catch(e){return 0;}}
@@ -1655,19 +1735,20 @@ $('hsStart').onclick=()=>{
     roster.push({pid:p.peer,team:t==='red'?0:1,human:true,local:p.sameTab,remote:!p.sameTab,avatar:cleanStr(pr.av,2)||'?',name:cleanBad(cleanStr(pr.nick,14)),nameColor:cleanCol(pr.nc),tag:cleanTag(pr.tg),cel:cleanCel(pr.cel),rating:Number(pr.r)||1000,trail:cleanTrail(pr.tr),sr:cleanTier(pr.sr)});}
   for(const b of NET.bots)roster.push({pid:b.id,team:b.team,rating:850,human:false,local:false,remote:false,avatar:cleanStr(b.av,2),name:cleanStr(b.name,14),nameColor:'#ffffff'});
   if(!roster.some(r=>r.team===0)||!roster.some(r=>r.team===1)){$('rStatus').textContent='Maç için iki takımda da en az bir oyuncu ya da bot olmalı.';return;}
+  NET.away={};NET.afk=[];
   NET.ro=roster.map(r=>[r.pid,r.team,r.avatar,r.name,r.nameColor,r.human?1:0,r.tag||'',r.cel||'',r.rating||1000,r.trail||'none',r.sr||'']);NET.phase='game';NET.pubN=0;
   pushRoom();pushLobby();
   const mt=NET.teams[TAB];
   startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
   sendSys('Maç başladı!');
-  if(roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;DB.matchBegin(NET.code).catch(()=>{});}
+  if(roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
 };
 function netHostInputs(){return NET.inputs;}
 function netHostPublish(){
   if(!NET.room||!G)return;
   NET.pubN++;if(NET.pubN%2)return; // 30 Hz
   const s=[];for(const p of G.players)s.push(Math.round(p.x),Math.round(p.y),p.kick?1:0);
-  const g={n:NET.pubN,s,b:[Math.round(G.ball.x),Math.round(G.ball.y)],sc:G.score,c:Math.round(G.clock*10)/10,st:G.state,gd:G.golden?1:0,ks:G.kseq,gs:G.gseq,lg:G.lastGoal,gi:G.gi,ai:G.ai,pg:G.players.map(p=>[p.g||0,p.a||0]),pa:G.paused?1:0};
+  const g={n:NET.pubN,s,b:[Math.round(G.ball.x),Math.round(G.ball.y)],sc:G.score,c:Math.round(G.clock*10)/10,st:G.state,gd:G.golden?1:0,ks:G.kseq,gs:G.gseq,lg:G.lastGoal,gi:G.gi,ai:G.ai,pg:G.players.map(p=>[p.g||0,p.a||0]),pa:G.paused?1:0,v:G.players.map(p=>[Math.round((p.vx||0)*100),Math.round((p.vy||0)*100)]),bv:[Math.round((G.ball.vx||0)*100),Math.round((G.ball.vy||0)*100)],ko:G.kickoff?1:0,kt:G.kickTeam,stt:G.stateT|0};
   const msg=JSON.stringify({g});let needRelay=false;
   for(const p of named(NET.room.peers())){if(p.sameTab)continue;const t=NET.teams[p.peer];if(t==='full'||t==='kicked')continue;const dc=dcOpen(p.peer);
     if(dc){try{dc.send(msg);}catch(e){needRelay=true;}}else needRelay=true;}
@@ -1694,7 +1775,7 @@ function buildClientGame(pr){
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
-  if(mine&&players.filter(p=>p.human).length>=2){G.ranked=true;DB.matchBegin(NET.code).catch(()=>{});}
+  if(mine&&players.filter(p=>p.human).length>=2){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
   if(mine){show('game');resize();sWhistle(0.45,1);}else if(NET.watch){show('game');resize();renderHud();}else renderRoom();
 }
 function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;NET.snap=g;}

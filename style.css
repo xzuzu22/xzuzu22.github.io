@@ -396,3 +396,7 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .tierb{margin-left:4px;font-size:14px}
 .myrew{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;margin:4px 0 8px}.myrew .muted{color:var(--muted)}
 .rewb{padding:2px 10px;border-radius:99px;border:1px solid var(--tc);color:var(--tc);font-weight:700}
+/* maça dönüş ve AFK uyarısı */
+.rejoin{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-color:var(--flood);background:linear-gradient(90deg,rgba(242,194,48,.12),transparent)}
+.rejoin span{flex:1 1 240px;font-weight:700}.rejoin .big{width:auto;padding:10px 22px}
+.afktoast{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:61;max-width:calc(100vw - 24px);padding:12px 16px;border-radius:12px;background:#3a1512;border:1px solid #e0483e;color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 30px rgba(0,0,0,.5);text-align:center}
