@@ -329,3 +329,11 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .specn{margin-left:10px;font-size:.8em;color:#cfe6d6;font-weight:700}
 .specbadge{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:99px;background:rgba(6,14,9,.78);border:1px solid var(--line);font-weight:700;font-size:14px;z-index:5}
 .roomcard .watch{grid-column:1/-1;justify-self:start;margin-top:4px;font-size:12px;font-weight:800;color:#111;background:var(--flood);border-radius:99px;padding:2px 10px}
+/* arkadaşlar */
+.flist{display:flex;flex-direction:column;gap:6px}
+.frow{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"av nm act" "av st act";gap:0 10px;align-items:center;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.04)}
+.frow .av{grid-area:av;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#2a3d31;font-weight:800;font-size:13px}
+.frow b{grid-area:nm}.frow small{grid-area:st;font-size:12px;color:var(--muted)}.frow small.on{color:#7fe0aa}.frow small.inc{color:var(--flood)}
+.frow .fact{grid-area:act;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.invpanel{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.invpanel b{width:100%}
+.invtoast{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px);padding:10px 12px;border-radius:12px;background:#132219;border:1px solid var(--flood);box-shadow:0 8px 30px rgba(0,0,0,.5);font-weight:700;font-size:14px}

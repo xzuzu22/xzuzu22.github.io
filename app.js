@@ -20,7 +20,7 @@ function show(id){screens.forEach(s=>$(s).hidden=s!==id);
   if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('gchat').hidden=!on;if(!on)closeChat();}}
 function showTab(t){curTab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   ['rooms','profile','team','league'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  if(t==='rooms'){renderOnline();renderDrills();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
+  if(t==='rooms'){renderOnline();renderDrills();loadFriends();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
 function showMain(t){if(t)curTab=t;show('main');}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 $('meChip').onclick=()=>showTab('profile');
@@ -974,6 +974,18 @@ const DB={
     if(!LIVE){const d=MOCKDB.get();const ms=(d.matches||[]).filter(m=>m.user_id===u).reverse();
       return {played:ms.length,goals:ms.reduce((s,m)=>s+m.goals,0),assists:ms.reduce((s,m)=>s+m.assists,0),won:ms.filter(m=>m.result==='W').length,rating:((d.ratings||{})[u]||{}).rating,rgames:((d.ratings||{})[u]||{}).games,last:ms.slice(0,10)};}
     const {data,error}=await sb.rpc('player_summary',{p_user:u});if(error)throw error;return data;},
+  async friends(){
+    if(!LIVE){const d=MOCKDB.get();return (d.friends||[]).filter(f=>f.a===uid||f.b===uid).map(f=>{const id=f.a===uid?f.b:f.a;const p=d.profiles[id]||{};return {id,status:f.status,incoming:f.status==='pending'&&f.requester!==uid,nick:p.nick,avatar:p.avatar,name_color:p.name_color};});}
+    const {data,error}=await sb.rpc('my_friends');if(error)throw error;return data||[];},
+  async friendReq(u){
+    if(!LIVE){const d=MOCKDB.get();d.friends=d.friends||[];const f=d.friends.find(f=>(f.a===uid&&f.b===u)||(f.b===uid&&f.a===u));if(f){if(f.status==='pending'&&f.requester!==uid)f.status='accepted';MOCKDB.put(d);return f.status;}d.friends.push({a:uid,b:u,requester:uid,status:'pending'});MOCKDB.put(d);return 'pending';}
+    const {data,error}=await sb.rpc('friend_request',{p_user:u});if(error)throw error;return data;},
+  async friendRespond(u,ok){
+    if(!LIVE){const d=MOCKDB.get();const f=(d.friends||[]).find(f=>(f.a===u&&f.b===uid)||(f.b===u&&f.a===uid));if(f){if(ok)f.status='accepted';else d.friends=d.friends.filter(x=>x!==f);}MOCKDB.put(d);return;}
+    const {error}=await sb.rpc('friend_respond',{p_user:u,p_accept:ok});if(error)throw error;},
+  async friendRemove(u){
+    if(!LIVE){const d=MOCKDB.get();d.friends=(d.friends||[]).filter(f=>!((f.a===u&&f.b===uid)||(f.b===u&&f.a===uid)));MOCKDB.put(d);return;}
+    const {error}=await sb.rpc('friend_remove',{p_user:u});if(error)throw error;},
   async myRating(){
     if(!LIVE){const d=MOCKDB.get();return (d.ratings||{})[uid]||{rating:1000,games:0};}
     const {data,error}=await sb.from('player_ratings').select('rating,games').eq('user_id',uid).maybeSingle();if(error)throw error;return data||{rating:1000,games:0};},
@@ -1146,12 +1158,13 @@ async function netConnect(){
   if(!ok){NET.state='bad';renderNetState('Canlı sunucuya bağlanılamadı. Biraz sonra tekrar dene; botlara karşı antrenman açık.');setTimeout(()=>{NET.state='off';netConnect();},8000);return;}
   NET.lobby=lobby;NET.state='on';
   lobby.onPeers(()=>schedule(renderOnline));
+  lobby.on('inv',onInvite);lobby.on('frq',d=>{if(d&&d.to===uid)loadFriends(true);});
   pushLobby();renderNetState('');renderOnline();
 }
 function pushLobby(){
   if(!NET.lobby)return;
   const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR()}:null;
-  NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,chat:NET.lobbyChat,host,inRoom:NET.room?1:0});
+  NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,chat:NET.lobbyChat,host,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
 }
 function renderNetState(msg){
   const el=$('netState');if(!el)return;
@@ -1181,7 +1194,7 @@ function renderOnline(){
     b.onclick=()=>{NET.watch=r.ph==='game';enterRoom(r.code);};
     if(r.ph==='game'){const w=document.createElement('span');w.className='watch';w.textContent='👁 İzle';b.appendChild(w);}
     list.appendChild(b);});
-  renderChat('lobby',NET.lobby,$('lcLog'));
+  renderChat('lobby',NET.lobby,$('lcLog'));renderFriends();
   const ol=$('onlineList');ol.innerHTML='';
   ps.sort((x,y)=>(y.sameTab?1:0)-(x.sameTab?1:0)).slice(0,60).forEach(p=>{const pr=p.presence;const b=document.createElement('button');b.type='button';b.className='oplayer';
     const av=document.createElement('span');av.className='av';av.textContent=cleanStr(pr.av,2)||'?';
@@ -1207,6 +1220,44 @@ let MYR={r:1000,g:0};
 const RANKS=[[0,'Bronz','#c98a55'],[900,'Gümüş','#c9d1d9'],[1100,'Altın','#f2c230'],[1300,'Platin','#5fd3c6'],[1500,'Elmas','#7fb2ff'],[1700,'Usta','#e07bff']];
 function rankOf(r,g){r=Number(r)||1000;if((Number(g)||0)<5)return {n:'Yerleşiyor',c:'#9aa7a0',r};let k=RANKS[0];for(const x of RANKS)if(r>=x[0])k=x;return {n:k[1],c:k[2],r};}
 function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk';s.style.setProperty('--rk',k.c);s.textContent=short?(k.n==='Yerleşiyor'?'?':k.n[0]):k.n+(k.n==='Yerleşiyor'?'':' '+k.r);s.title=k.n+' · '+k.r+' puan';return s;}
+
+// ---------- Arkadaşlar ve davet ----------
+let FRIENDS=[],FR_AT=0;
+const frPing=u=>{try{NET.lobby&&NET.lobby.send('frq',{to:u});}catch(e){}};
+async function loadFriends(force){if(!force&&Date.now()-FR_AT<45000)return;FR_AT=Date.now();try{FRIENDS=(await DB.friends())||[];}catch(e){}renderFriends();}
+const isFriend=u=>FRIENDS.some(f=>f.id===u&&f.status==='accepted');
+function friendPresence(u){if(!NET.lobby)return null;return named(NET.lobby.peers()).find(p=>p.presence.u===u)||null;}
+function renderFriends(){
+  const box=$('friendList');if(!box)return;box.innerHTML='';
+  const inc=FRIENDS.filter(f=>f.incoming),acc=FRIENDS.filter(f=>f.status==='accepted'),out=FRIENDS.filter(f=>f.status==='pending'&&!f.incoming);
+  if(!FRIENDS.length){box.innerHTML='<p class="note">Henüz arkadaşın yok. Bir oyuncuya dokunup "Arkadaş ekle" de; online olduğunda burada görürsün, odana davet edebilirsin.</p>';return;}
+  const row=(f,state,btns)=>{const d=document.createElement('div');d.className='frow';const av=document.createElement('span');av.className='av';av.textContent=cleanStr(f.avatar||'',2)||'?';
+    const nm=document.createElement('b');nm.textContent=cleanBad(cleanStr(f.nick||'Oyuncu',14));if(f.name_color)nm.style.color=cleanCol(f.name_color);
+    const st=document.createElement('small');st.textContent=state.t;st.className=state.c||'';const a=document.createElement('div');a.className='fact';btns.forEach(x=>a.appendChild(x));d.append(av,nm,st,a);box.appendChild(d);};
+  const B=(t,fn,cls)=>{const b=document.createElement('button');b.className='chip'+(cls?' '+cls:'');b.textContent=t;b.onclick=fn;return b;};
+  inc.forEach(f=>row(f,{t:'arkadaşlık isteği',c:'inc'},[B('Kabul et',async()=>{await DB.friendRespond(f.id,true).catch(()=>{});frPing(f.id);loadFriends(true);},'go'),B('Reddet',async()=>{await DB.friendRespond(f.id,false).catch(()=>{});loadFriends(true);})]));
+  acc.map(f=>({f,p:friendPresence(f.id)})).sort((x,y)=>(y.p?1:0)-(x.p?1:0)).forEach(({f,p})=>{
+    const pr=p&&p.presence;const st=!pr?{t:'çevrimdışı',c:'off'}:pr.inRoom?{t:'odada',c:'on'}:{t:'lobide',c:'on'};const btns=[];
+    if(pr&&pr.rc&&pr.rc!==NET.code)btns.push(B('Odasına git',()=>enterRoom(pr.rc)));
+    btns.push(B('İstatistik',()=>openStats(f.id,f.nick||'Oyuncu','')));row(f,st,btns);});
+  out.forEach(f=>row(f,{t:'istek gönderildi',c:'off'},[B('Geri al',async()=>{await DB.friendRemove(f.id).catch(()=>{});loadFriends(true);})]));
+}
+function openInvite(){
+  const m=$('invPanel');m.hidden=!m.hidden;if(m.hidden)return;m.innerHTML='';
+  const h=document.createElement('b');h.textContent='Arkadaşını davet et';m.appendChild(h);
+  const here=new Set(named(NET.room?NET.room.peers():[]).map(p=>p.presence.u));
+  const on=FRIENDS.filter(f=>f.status==='accepted').map(f=>({f,p:friendPresence(f.id)})).filter(x=>x.p&&!here.has(x.f.id));
+  if(!on.length){const n=document.createElement('p');n.className='note';n.textContent=FRIENDS.some(f=>f.status==='accepted')?'Şu an çevrimiçi arkadaşın yok. Oda kodunu paylaşabilirsin: '+NET.code:'Henüz arkadaşın yok. Oda kodunu paylaş: '+NET.code;m.appendChild(n);}
+  on.forEach(({f})=>{const b=document.createElement('button');b.className='chip';b.textContent=(f.nick||'Oyuncu')+' · Davet et';b.onclick=()=>{sendInvite(f.id);b.textContent=(f.nick||'Oyuncu')+' · Davet gönderildi ✓';b.disabled=true;};m.appendChild(b);});
+}
+function sendInvite(to){if(!NET.lobby||!NET.room)return;const v=roomView()||{cfg:{}};NET.lobby.send('inv',{to,from:uid,nick:prof.name,code:NET.code,room:cleanStr(v.cfg.name||'',28)});}
+function onInvite(d){
+  if(!d||d.to!==uid||typeof d.code!=='string'||!/^[a-z0-9]{4}$/.test(d.code)||!isFriend(d.from)||isMuted(d.from)||d.code===NET.code)return;
+  const t=$('invToast');t.innerHTML='';const s=document.createElement('span');s.textContent=`${cleanBad(cleanStr(d.nick,14))} seni ${d.room?'"'+cleanBad(cleanStr(d.room,28))+'" ':''}odasına çağırıyor`;
+  const j=document.createElement('button');j.className='chip go';j.textContent='Katıl';j.onclick=()=>{t.hidden=true;if(G&&!G.net)G=null;enterRoom(d.code);};
+  const x=document.createElement('button');x.className='chip';x.textContent='Kapat';x.onclick=()=>t.hidden=true;
+  t.append(s,j,x);t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,25000);try{sKick(0.6);}catch(e){}
+}
 
 // ---------- Sohbet ----------
 function sendChat(scope,text){
@@ -1391,6 +1442,7 @@ function renderRoom(){
     const r=document.createElement('button');r.className='chip';r.setAttribute('aria-pressed',String(!!NET.ready));r.textContent=NET.ready?'Hazırım ✓':'Hazırım';
     r.onclick=()=>{NET.ready=!NET.ready;pushRoom();renderRoom();};line.append(txt,r);
   }
+  const ib=document.createElement('button');ib.className='chip';ib.textContent='Arkadaş davet et';ib.onclick=openInvite;line.appendChild(ib);
   st.appendChild(line);
   if(!NET.isHost){const h=hostPeerOf(NET.room);const n=document.createElement('p');n.className='note';n.style.margin='8px 0 0';
     n.textContent=dcOpen(h&&h.peer)?'Oda sahibine doğrudan bağlısın (en düşük gecikme).':'Oda sahibine sunucu üzerinden bağlısın. Doğrudan bağlantı kuruluyor…';st.appendChild(n);}
@@ -1578,7 +1630,9 @@ async function openStats(u,nick,tg){
   if(typeof u==='string'&&u&&u!==uid){const act=document.createElement('div');act.className='modrow';
     const mb=document.createElement('button');mb.className='chip';const ml=()=>mb.textContent=isMuted(u)?'Susturmayı kaldır':'Sohbetini gizle';ml();mb.onclick=()=>{toggleMute(u);ml();};
     const rb=document.createElement('button');rb.className='chip danger';rb.textContent='Şikâyet et';rb.onclick=()=>reportForm(act,u,nick);
-    act.append(mb,rb);body.appendChild(act);}
+    const fb=document.createElement('button');fb.className='chip';const fs=()=>{const f=FRIENDS.find(x=>x.id===u);fb.textContent=!f?'Arkadaş ekle':f.status==='accepted'?'Arkadaşsınız ✓':f.incoming?'İsteği kabul et':'İstek gönderildi';fb.disabled=!!f&&(f.status==='accepted'||!f.incoming);};fs();
+    fb.onclick=async()=>{try{await DB.friendReq(u);frPing(u);await loadFriends(true);fs();}catch(e){fb.textContent=errText(e);}};
+    act.append(fb,mb,rb);body.appendChild(act);}
   const c=document.createElement('button');c.className='ghost';c.style.justifyContent='center';c.textContent='Kapat';c.onclick=()=>ov.hidden=true;body.appendChild(c);
   if(typeof u!=='string'||!u){box.innerHTML='<p class="note">Bu oyuncunun istatistikleri görünmüyor (eski sürümü kullanıyor olabilir).</p>';return;}
   try{statsView(box,await DB.playerSummary(u));}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}
@@ -1767,6 +1821,7 @@ function enterMain(){
   DB.restrictions().then(r=>{Object.assign(MOD,r||{});
     if(MOD.banned_until&&new Date(MOD.banned_until)>new Date()){leaveRoom(true);try{NET.lobby&&NET.lobby.leave();}catch(e){}NET.lobby=null;show('gate');$('gateForm').hidden=true;
       $('gateMsg').textContent='Hesabın '+new Date(MOD.banned_until).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' tarihine kadar oyundan uzaklaştırıldı.'+(MOD.ban_reason?' Sebep: '+MOD.ban_reason:'');}}).catch(()=>{});
+  loadFriends(true);setInterval(()=>loadFriends(),60000);
   DB.myRating().then(r=>{MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};renderMe();pushLobby();}).catch(()=>{});
   renderMe();showMain('rooms');netConnect();DB.myTeam().then(m=>{myTeamCache=m;renderMe();}).catch(()=>{});}
 (async()=>{

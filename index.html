@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=536274f">
+<link rel="stylesheet" href="style.css?v=e874e6a">
 </head>
 <body>
 
@@ -88,6 +88,10 @@
         <h2>Çevrimiçi oyuncular</h2>
         <p class="note" style="margin:0">İstatistiklerini görmek için bir oyuncuya dokun.</p>
         <div class="plist online" id="onlineList"></div>
+      </div>
+      <div class="panel">
+        <h2>Arkadaşlar</h2>
+        <div class="flist" id="friendList"></div>
       </div>
       <div class="panel">
         <h2>Lobi sohbeti</h2>
@@ -191,6 +195,7 @@
       <button class="chip" id="copyCode">Kod: <b id="rCode"></b></button>
     </div>
     <div class="panel" id="rStatus"></div>
+    <div class="panel invpanel" id="invPanel" hidden></div>
     <div class="teams3">
       <div class="tcol" id="col0"><h3><canvas width="40" height="40" style="width:20px;height:20px"></canvas><span></span><em></em></h3><div class="plist"></div><button class="join" data-team="red">Bu takıma geç</button></div>
       <div class="tcol" id="colS" style="--tc:#8a9a88"><h3><span>İzleyiciler</span><em></em></h3><div class="plist"></div><button class="join" data-team="spec">İzleyici ol</button></div>
@@ -283,6 +288,7 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=536274f"></script>
+<script type="module" src="app.js?v=e874e6a"></script>
+<div class="invtoast" id="invToast" hidden></div>
 </body>
 </html>
