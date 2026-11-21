@@ -456,9 +456,9 @@ function camUpdate(){
   const bvx=(b.x-(CAM.bx??b.x)),bvy=(b.y-(CAM.by??b.y));CAM.bx=b.x;CAM.by=b.y;
   CAM.vx=CAM.vx*0.9+bvx*0.1;CAM.vy=CAM.vy*0.9+bvy*0.1; // topun yumuşatılmış hızı
   let tx=0,ty=0,tz=1,ease=0.14;
-  if(m===2){tx=b.x;ty=b.y;tz=1.55;}
-  else if(m===3){tx=tgt.x;ty=tgt.y;tz=1.55;}
-  else if(m===4){tx=tgt.x;ty=tgt.y;tz=2.2;}
+  if(m===2){tx=b.x;ty=b.y;tz=1.3;}
+  else if(m===3){tx=tgt.x;ty=tgt.y;tz=1.3;}
+  else if(m===4){tx=tgt.x;ty=tgt.y;tz=1.75;}
   else if(m===5){ // oyuncu ve topu birlikte kadraja alır, aralarındaki mesafeye göre yakınlaşır
     tx=tgt.x*0.45+b.x*0.55;ty=tgt.y*0.45+b.y*0.55;
     const dx=Math.abs(tgt.x-b.x)+140,dy=Math.abs(tgt.y-b.y)+110;
