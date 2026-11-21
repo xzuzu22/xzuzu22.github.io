@@ -1073,6 +1073,14 @@ const DB={
   async teams(){
     if(!LIVE){return Object.values(MOCKDB.get().teams);}
     const {data,error}=await sb.from('teams').select('id,name,abbr,kit,tier,points,played,won,drawn,lost,gf,ga').order('tier').order('points',{ascending:false}).limit(600);if(error)throw error;return data;},
+  async leagueTick(){
+    if(!LIVE)return null;
+    const {data,error}=await sb.rpc('league_tick');if(error)throw error;return data;},
+  async leagueInfo(teamId){
+    if(!LIVE){const d=MOCKDB.get();return {titles:d.titles||[],hist:(d.lhist||[]).filter(h=>h.team_id===teamId)};}
+    const [a,b]=await Promise.all([sb.from('team_titles').select('team_id,season,tier').limit(1000),
+      teamId?sb.from('league_history').select('*').eq('team_id',teamId).order('season',{ascending:false}).limit(1):Promise.resolve({data:[]})]);
+    if(a.error)throw a.error;return {titles:a.data||[],hist:b.data||[]};},
   async members(teamId){
     if(!LIVE){const d=MOCKDB.get();return d.members.filter(m=>m.team_id===teamId).map(m=>({...m,...(d.profiles[m.user_id]||{nick:'?'})}));}
     const {data,error}=await sb.from('team_members').select('user_id,role,joined_at').eq('team_id',teamId).order('joined_at');if(error)throw error;
@@ -2214,9 +2222,18 @@ async function renderCup(box,TT,myId,cap){
 }
 async function renderLeague(){
   const box=$('leagueGrid');box.innerHTML='<p class="note">Yükleniyor…</p>';
+  await DB.leagueTick().catch(()=>{});
   let ts,mt,lm;try{[ts,mt,lm]=await Promise.all([DB.teams(),DB.myTeam().catch(()=>null),DB.leagueMatches().catch(()=>[])]);}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='Lig bilgisi alınamadı: '+errText(e);box.appendChild(p);return;}
   myTeamCache=mt;box.innerHTML='';const myId=mt&&mt.team&&mt.team.id;const cap=mt&&mt.role==='kaptan';
   const TT={};ts.forEach(t=>TT[t.id]=t);const tn=id=>TT[id]?TT[id].name:'?';
+  const LI=await DB.leagueInfo(myId).catch(()=>({titles:[],hist:[]}));const TITLES={};LI.titles.forEach(x=>{(TITLES[x.team_id]=TITLES[x.team_id]||[]).push(x);});
+  const titleEl=id=>{const a=TITLES[id];if(!a||!a.length)return null;const s=document.createElement('span');s.className='ttl';s.textContent='🏆'+(a.length>1?a.length:'');s.title=a.map(x=>`${x.tier}. Kademe şampiyonu · ${seasonName(x.season)}`).join('\n');return s;};
+  {const hd=document.createElement('section');hd.className='lseason';const n=new Date();
+    hd.innerHTML='<b></b><span></span>';hd.querySelector('b').textContent=`⚽ ${seasonName(n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'))} lig sezonu`;
+    hd.querySelector('span').textContent=`Bitişe ${seasonLeft()} · sezon sonunda her kademede ilk 2 bir üste çıkar, son 2 bir alta düşer (en az 5 takım varsa) · kademe birincisi 🏆 kupa alır · puanlar sıfırlanır`;
+    const h=LI.hist[0];if(h){const r=document.createElement('div');r.className='lsres '+(h.new_tier<h.tier?'up':h.new_tier>h.tier?'down':'');
+      r.textContent=`Geçen sezon (${seasonName(h.season)}): ${h.tier}. Kademede ${h.pos}. oldunuz · ${h.points} puan`+(h.pos===1&&h.played>0?' · 🏆 Şampiyon!':'')+(h.new_tier<h.tier?` · ↑ ${h.new_tier}. Kademeye yükseldiniz`:h.new_tier>h.tier?` · ↓ ${h.new_tier}. Kademeye düştünüz`:' · kademenizde kaldınız');hd.appendChild(r);}
+    box.appendChild(hd);}
   const act=async(fn,args,msgEl)=>{try{await DB.leagueRpc(fn,args);renderLeague();}catch(e){if(msgEl)msgEl.textContent=errText(e);}};
   const btn=(txt,cls,fn)=>{const b=document.createElement('button');b.className='chip'+(cls?' '+cls:'');b.textContent=txt;b.onclick=fn;return b;};
   renderCup(box,TT,myId,cap);
@@ -2262,7 +2279,7 @@ async function renderLeague(){
       list.forEach((t,i)=>{const tr=document.createElement('tr');const cls=[];if(t.id===myId)cls.push('me');
         if(zones&&tier>1&&i<2)cls.push('zup');if(zones&&tier<6&&i>=list.length-2)cls.push('zdown');if(zones&&tier===1&&i===0)cls.push('zchamp');tr.className=cls.join(' ');
         tr.innerHTML=`<td>${i+1}</td><td></td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.gf-t.ga}</td><td class="n">${t.points}</td>`;
-        tr.children[1].append(badgeEl(t.kit,18),document.createTextNode(t.name+' ('+t.abbr+')'));tb.appendChild(tr);});
+        tr.children[1].append(badgeEl(t.kit,18),document.createTextNode(t.name+' ('+t.abbr+')'));const te=titleEl(t.id);if(te)tr.children[1].append(te);tb.appendChild(tr);});
       wrap.appendChild(tb);sec.appendChild(wrap);
       const fx=lm.filter(m=>m.tier===tier&&(m.status==='accepted'||m.status==='played'||m.status==='reported')).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
       const up=fx.filter(m=>m.status!=='played').slice(0,6),done=fx.filter(m=>m.status==='played').slice(-6).reverse();

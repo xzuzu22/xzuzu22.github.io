@@ -429,3 +429,8 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .qsec .chip{align-self:flex-start;margin-top:4px}
 .chip.locked{opacity:.55}
 @media (max-width:480px){.qrow{grid-template-columns:1fr 70px 36px}}
+.lseason{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid rgba(255,255,255,.08);margin-bottom:12px}
+.lseason span{font-size:.85em;opacity:.8}
+.lsres{margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.06);font-weight:600}
+.lsres.up{background:rgba(60,200,110,.18)}.lsres.down{background:rgba(230,80,80,.18)}
+.ttl{margin-left:6px;font-size:.85em;cursor:help}
