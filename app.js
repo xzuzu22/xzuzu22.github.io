@@ -525,15 +525,19 @@ function renderEndStats(){
 }
 async function recordMyMatch(){
   if(!G||!G.net||G.recorded)return;const me=G.players.find(p=>p.local);if(!me)return;
-  if(G.players.filter(p=>p.human).length<2)return; // tek başına botlara karşı maçlar sayılmaz
-  G.recorded=true;
-  try{await DB.recordMatch(me.g||0,me.a||0,G.score[me.team],G.score[1-me.team],G.mapKey||'classic');}catch(e){console.warn('istatistik kaydedilemedi',e);}
-  const avg=t=>{const a=G.players.filter(p=>p.team===t).map(p=>p.human?(p.local?MYR.r:(p.rating||1000)):850);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):1000;};
-  try{const before=MYR.r,wasPl=MYR.g<5;const nr=await DB.recordRating(avg(me.team),avg(1-me.team),G.score[me.team],G.score[1-me.team]);
-    if(typeof nr==='number'){MYR.r=nr;MYR.g++;const d=nr-before;const el=document.createElement('div');el.className='rdelta '+(d>=0?'up':'dn');
-      el.append(document.createTextNode(`Beceri puanı ${d>=0?'+':''}${d} → ${nr} `),rankEl(nr,MYR.g));
-      if(MYR.g<5)el.append(document.createTextNode(` · yerleşmeye ${5-MYR.g} maç`));else if(wasPl)el.append(document.createTextNode(' · lige yerleştin!'));
-      $('endStats').before(el);pushLobby();if(NET.room)pushRoom();}}catch(e){console.warn('puan kaydedilemedi',e);}
+  const humans=G.players.filter(p=>p.human).length;if(humans<2)return; // tek başına botlara karşı maçlar sayılmaz
+  if(!G.mid)return;G.recorded=true;
+  const before=MYR.r,wasPl=MYR.g<5,mid=G.mid;
+  const show=st=>{if(!st)return;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());const el=document.createElement('div');
+    if(st.mismatch){el.className='rdelta dn';el.textContent='Bildirdiğin skor diğer oyuncularınkiyle uyuşmadı; bu maç sana sayılmadı.';}
+    else if(st.applied&&typeof st.rating==='number'){const d=st.delta|0;MYR.r=st.rating;MYR.g++;el.className='rdelta '+(d>=0?'up':'dn');
+      el.append(document.createTextNode(`Beceri puanı ${d>=0?'+':''}${d} → ${st.rating} `),rankEl(st.rating,MYR.g));
+      if(MYR.g<5)el.append(document.createTextNode(` · yerleşmeye ${5-MYR.g} maç`));else if(wasPl)el.append(document.createTextNode(' · lige yerleştin!'));pushLobby();if(NET.room)pushRoom();}
+    else{el.className='rdelta';el.textContent='Skor diğer oyuncuların onayını bekliyor…';}
+    $('endStats').before(el);};
+  let st=null;
+  try{st=await DB.reportResult(mid,me.team,G.score[0],G.score[1],me.g||0,me.a||0,humans,G.mapKey||'classic');show(st);}catch(e){console.warn('sonuç bildirilemedi',e);return;}
+  for(let k=0;k<6&&st&&!st.applied&&!st.mismatch;k++){await new Promise(r=>setTimeout(r,2500));try{st=await DB.resultStatus(mid);if(st&&(st.applied||st.mismatch))show(st);}catch(e){}}
 }
 function endMatch(){
   G.state='over';$('banner').classList.remove('on');
@@ -1093,6 +1097,12 @@ const DB={
   async teamCode(teamId){
     if(!LIVE){return MOCKDB.get().teams[teamId]?.join_code||'';}
     const {data,error}=await sb.rpc('team_code',{p_team:teamId});if(error)throw error;return data;},
+  async reportResult(mid,team,red,blue,goals,assists,humans,map){
+    if(!LIVE){const gf=team?blue:red,ga=team?red:blue;await this.recordMatch(goals,assists,gf,ga,map);const before=((MOCKDB.get().ratings||{})[uid]||{rating:1000}).rating;const nr=await this.recordRating(1000,1000,gf,ga);return {final:true,applied:true,delta:nr-before,rating:nr};}
+    const {data,error}=await sb.rpc('report_result',{p_mid:mid,p_team:team,p_red:red,p_blue:blue,p_goals:goals,p_assists:assists,p_humans:humans,p_map:map});if(error)throw error;return data;},
+  async resultStatus(mid){
+    if(!LIVE)return null;
+    const {data,error}=await sb.rpc('result_status',{p_mid:mid});if(error)throw error;return data;},
   async recordMatch(goals,assists,gf,ga,map){
     if(!LIVE){const d=MOCKDB.get();(d.matches=d.matches||[]).push({user_id:uid,played_at:new Date().toISOString(),goals,assists,gf,ga,result:gf>ga?'W':gf===ga?'D':'L',map});MOCKDB.put(d);return;}
     const {error}=await sb.rpc('record_match',{p_goals:goals,p_assists:assists,p_gf:gf,p_ga:ga,p_map:map});if(error)throw error;},
@@ -1572,7 +1582,7 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 function pushRoom(){
   if(!NET.room)return;
   const pr={pn:NET.isHost?0:(NET.ping||0),nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),qm:QSTARS>=30?1:0,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
-  if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:avgPing(),afk:NET.afk||[],code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
+  if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:avgPing(),afk:NET.afk||[],mid:NET.mid||'',code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
 const hostPeerOf=r=>r?named(r.peers()).find(p=>p.presence.H===1&&p.presence.code===NET.code):null;
@@ -1664,7 +1674,7 @@ function promoteToHost(){
     G.players.forEach((p,i)=>{const op=old.players[i];if(op){p.x=op.x;p.y=op.y;p.g=op.g||0;p.a=op.a||0;}const v=Array.isArray(snap.v)&&snap.v[i];if(v){p.vx=v[0]/100;p.vy=v[1]/100;}});
     G.ball.x=old.ball.x;G.ball.y=old.ball.y;if(Array.isArray(snap.bv)){G.ball.vx=snap.bv[0]/100;G.ball.vy=snap.bv[1]/100;}
     G.score=[...old.score];G.clock=old.clock;G.golden=!!old.golden;G.kickoff=snap.ko===1;G.kickTeam=snap.kt===1?1:0;
-    G.state=snap.st==='goal'?'goal':'play';G.stateT=Number(snap.stt)||0;G.gseq=Number(snap.gs)||0;G.kseq=Number(snap.ks)||0;G.ranked=old.ranked;G.goals=old.goals||[];G.rec=old.rec||[];
+    G.state=snap.st==='goal'?'goal':'play';G.stateT=Number(snap.stt)||0;G.gseq=Number(snap.gs)||0;G.kseq=Number(snap.ks)||0;G.ranked=old.ranked;G.mid=old.mid;NET.mid=old.mid;G.goals=old.goals||[];G.rec=old.rec||[];
     if(!watching)show('roomScr');
     NET.ro=ro;NET.pubN=(NET.snapN||0)+20;
   } else if(NET.phase==='game'){NET.phase='lobby';NET.ro=null;}
@@ -1860,12 +1870,13 @@ $('hsStart').onclick=()=>{
     roster.push({pid:p.peer,team:t==='red'?0:1,human:true,local:p.sameTab,remote:!p.sameTab,avatar:cleanStr(pr.av,2)||'?',name:cleanBad(cleanStr(pr.nick,14)),nameColor:cleanCol(pr.nc),tag:cleanTag(pr.tg),cel:cleanCel(pr.cel),rating:Number(pr.r)||1000,trail:cleanTrail(pr.tr),sr:cleanTier(pr.sr)});}
   for(const b of NET.bots)roster.push({pid:b.id,team:b.team,rating:850,human:false,local:false,remote:false,avatar:cleanStr(b.av,2),name:cleanStr(b.name,14),nameColor:'#ffffff'});
   if(!roster.some(r=>r.team===0)||!roster.some(r=>r.team===1)){$('rStatus').textContent='Maç için iki takımda da en az bir oyuncu ya da bot olmalı.';return;}
-  NET.away={};NET.afk=[];
+  NET.away={};NET.afk=[];NET.mid=NET.code+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   NET.ro=roster.map(r=>[r.pid,r.team,r.avatar,r.name,r.nameColor,r.human?1:0,r.tag||'',r.cel||'',r.rating||1000,r.trail||'none',r.sr||'']);NET.phase='game';NET.pubN=0;
   pushRoom();pushLobby();
   const mt=NET.teams[TAB];
   startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
   sendSys('Maç başladı!');
+  G.mid=NET.mid;
   if(roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
 };
 function netHostInputs(){return NET.inputs;}
@@ -1900,6 +1911,7 @@ function buildClientGame(pr){
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
+  G.mid=typeof pr.mid==='string'?pr.mid.slice(0,48):'';
   if(mine&&players.filter(p=>p.human).length>=2){G.ranked=true;setLastMatch(NET.code);DB.matchBegin(NET.code).catch(()=>{});}
   if(mine){show('game');resize();sWhistle(0.45,1);}else if(NET.watch){show('game');resize();renderHud();}else renderRoom();
 }
