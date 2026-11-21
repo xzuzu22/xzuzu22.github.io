@@ -20,7 +20,7 @@ function show(id){screens.forEach(s=>$(s).hidden=s!==id);
   if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('emoteBtn').hidden=!on;$('emoteBar').hidden=true;$('gchat').hidden=!on;if(!on)closeChat();}}
 function showTab(t){curTab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   ['rooms','profile','team','league'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  if(t==='rooms'){renderOnline();renderDrills();loadFriends();renderTutBox();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
+  if(t==='rooms'){renderOnline();renderDrills();loadFriends();renderTutBox();}if(t==='profile'){renderProfile();renderPush();}if(t==='team')renderTeam();if(t==='league')renderLeague();}
 function showMain(t){if(t)curTab=t;show('main');}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 $('meChip').onclick=()=>showTab('profile');
@@ -1152,6 +1152,11 @@ const DB={
   async submitBug(body,ctx){
     if(!LIVE){const d=MOCKDB.get();d.bugs=d.bugs||[];d.bugs.unshift({id:d.bugs.length+1,user_id:uid,nick:prof.name,body,ctx,status:'open',created_at:new Date().toISOString()});MOCKDB.put(d);return d.bugs.length;}
     const {data,error}=await sb.rpc('submit_bug',{p_body:body,p_ctx:ctx});if(error)throw error;return data;},
+  async pushKey(){if(!LIVE)return 'BJHK8caDR8Jdsc2ssY2gGrzC72WgdIfXC23Wx1eXdAnhvMHTVgUutKpY-YpTht4H2EeuKxYFZURNHyQGbSLuGgQ';const {data,error}=await sb.rpc('vapid_public_key');if(error)throw error;
+    if(!data){await sb.functions.invoke('push-send',{body:{}}).catch(()=>{});const r=await sb.rpc('vapid_public_key');return r.data;}return data;},
+  async savePush(sub,prefs){const j=sub.toJSON();if(!LIVE){localStorage.setItem('uzk-pushmock',JSON.stringify(prefs));return;}const {error}=await sb.rpc('save_push',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_prefs:prefs});if(error)throw error;},
+  async deletePush(ep){if(!LIVE)return;await sb.rpc('delete_push',{p_endpoint:ep});},
+  async pushInvite(to,code,room){if(!LIVE)return;const {error}=await sb.rpc('push_invite',{p_to:to,p_code:code,p_room:room||''});if(!error)sb.functions.invoke('push-send',{body:{}}).catch(()=>{});},
   async pingActive(){if(!LIVE)return;await sb.rpc('ping_active');},
   async questStatus(){
     if(!LIVE){const d=MOCKDB.get();const n=new Date(),day=n.toISOString().slice(0,10);const ms=(d.matches||[]).filter(m=>m.user_id===uid);const agg=a=>({played:a.length,goals:a.reduce((s,m)=>s+m.goals,0),assists:a.reduce((s,m)=>s+m.assists,0),won:a.filter(m=>m.result==='W').length});
@@ -1513,7 +1518,8 @@ function openInvite(){
   if(!on.length){const n=document.createElement('p');n.className='note';n.textContent=FRIENDS.some(f=>f.status==='accepted')?'Şu an çevrimiçi arkadaşın yok. Oda kodunu paylaşabilirsin: '+NET.code:'Henüz arkadaşın yok. Oda kodunu paylaş: '+NET.code;m.appendChild(n);}
   on.forEach(({f})=>{const b=document.createElement('button');b.className='chip';b.textContent=(f.nick||'Oyuncu')+' · Davet et';b.onclick=()=>{sendInvite(f.id);b.textContent=(f.nick||'Oyuncu')+' · Davet gönderildi ✓';b.disabled=true;};m.appendChild(b);});
 }
-function sendInvite(to){if(!NET.lobby||!NET.room)return;const v=roomView()||{cfg:{}};NET.lobby.send('inv',{to,from:uid,nick:prof.name,code:NET.code,room:cleanStr(v.cfg.name||'',28)});}
+function sendInvite(to){if(!NET.lobby||!NET.room)return;const v=roomView()||{cfg:{}};NET.lobby.send('inv',{to,from:uid,nick:prof.name,code:NET.code,room:cleanStr(v.cfg.name||'',28)});
+  const online=named(NET.lobby.peers()).some(p=>p.presence.u===to);if(!online)DB.pushInvite(to,NET.code,cleanStr(v.cfg.name||'',28)).catch(()=>{});}
 function onInvite(d){
   if(!d||d.to!==uid||typeof d.code!=='string'||!/^[a-z0-9]{4}$/.test(d.code)||!isFriend(d.from)||isMuted(d.from)||d.code===NET.code)return;
   const t=$('invToast');t.innerHTML='';const s=document.createElement('span');s.textContent=`${cleanBad(cleanStr(d.nick,14))} seni ${d.room?'"'+cleanBad(cleanStr(d.room,28))+'" ':''}odasına çağırıyor`;
@@ -1823,6 +1829,50 @@ async function openAdmin(){
 $('adminClose').onclick=()=>{$('adminOv').hidden=true;if(location.hash==='#admin')history.replaceState(null,'',location.pathname+location.search);};
 function checkAdminRoute(){if(location.hash==='#admin'&&!$('main').hidden)openAdmin();}
 addEventListener('hashchange',checkAdminRoute);
+
+// ---------- Telefon bildirimleri (Web Push) ----------
+const PUSH_KINDS=[['league','Lig maçı teklifleri ve maç saati hatırlatması'],['invite','Arkadaşından maç daveti'],['cup','Hafta sonu kupası başlıyor'],['friend','Arkadaşlık isteği']];
+function pushPrefs(){try{return {league:true,invite:true,cup:true,friend:true,...JSON.parse(localStorage.getItem('uzk-pushprefs')||'{}')};}catch(e){return {league:true,invite:true,cup:true,friend:true};}}
+const b64u=s=>{const p='='.repeat((4-s.length%4)%4);const r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0));};
+async function pushSub(){if(!('serviceWorker' in navigator))return null;const reg=await navigator.serviceWorker.getRegistration();return reg?reg.pushManager.getSubscription():null;}
+async function enablePush(){
+  const reg=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+  const perm=await Notification.requestPermission();if(perm!=='granted')throw new Error(perm==='denied'?'denied':'dismissed');
+  const key=await DB.pushKey();if(!key)throw new Error('Bildirim sunucusu hazır değil, biraz sonra tekrar dene.');
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(key)});
+  await DB.savePush(sub,pushPrefs());return sub;}
+async function renderPush(){
+  const box=$('pushBox');if(!box)return;box.innerHTML='';const note=t=>{const p=document.createElement('p');p.className='note';p.textContent=t;box.appendChild(p);return p;};
+  const ok='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+  if(isIOS&&!isStandalone()){note('iPhone/iPad\'de bildirim almak için önce Uzkball\'u ana ekrana ekle: Safari\'de Paylaş ⬆️ → "Ana Ekrana Ekle". Sonra ana ekrandaki simgeden açıp buradan bildirimleri aç.');return;}
+  if(!ok){note('Bu tarayıcı telefon bildirimlerini desteklemiyor. Chrome, Edge, Firefox ya da ana ekrana eklenmiş Safari kullan.');return;}
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){note('Bildirimler yalnızca güvenli bağlantıda (https) çalışır.');return;}
+  let sub=null;try{sub=await pushSub();}catch(e){}
+  const on=!!sub&&Notification.permission==='granted';
+  const row=document.createElement('div');row.className='pushrow';const st=document.createElement('span');st.className='pushst'+(on?' on':'');
+  st.textContent=on?'🔔 Bu cihazda açık':Notification.permission==='denied'?'🔕 Tarayıcı ayarlarında engellenmiş':'🔕 Kapalı';
+  const b=document.createElement('button');b.className='chip'+(on?'':' go');b.textContent=on?'Kapat':'Bildirimleri aç';
+  const msg=document.createElement('p');msg.className='note';msg.style.margin='0';
+  b.onclick=async()=>{b.disabled=true;msg.textContent='';try{
+      if(on){const s=await pushSub();if(s){await DB.deletePush(s.endpoint).catch(()=>{});await s.unsubscribe();}}
+      else{await enablePush();}
+      renderPush();}catch(e){b.disabled=false;msg.textContent=/denied/.test(e.message)?'İzin verilmedi. Tarayıcının site ayarlarından bildirimlere izin verip tekrar dene.':/dismissed/.test(e.message)?'İzin penceresi kapatıldı.':errText(e);}};
+  row.append(st,b);box.append(row);
+  if(Notification.permission==='denied'&&!on)b.disabled=true;
+  const pr=pushPrefs();const g=document.createElement('div');g.className='pushkinds';
+  PUSH_KINDS.forEach(([k,l])=>{const lab=document.createElement('label');lab.className='toggle';const c=document.createElement('input');c.type='checkbox';c.checked=pr[k]!==false;c.disabled=!on;
+    c.onchange=async()=>{const p=pushPrefs();p[k]=c.checked;try{localStorage.setItem('uzk-pushprefs',JSON.stringify(p));}catch(e){}const s=await pushSub();if(s)DB.savePush(s,p).catch(e=>{msg.textContent=errText(e);});};
+    lab.append(c,document.createTextNode(' '+l));g.appendChild(lab);});
+  box.append(g,msg);
+  if(!on)note('Lig maçın yaklaşınca, arkadaşın seni davet edince ya da kupa başlarken oyun kapalıyken bile telefonuna bildirim gelir.');
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{const u=e.data&&e.data.uzkOpen;if(typeof u==='string'){try{const x=new URL(u);handleDeepLink(x);}catch(_){}}});
+function handleDeepLink(u=new URL(location.href)){
+  const j=(u.searchParams.get('join')||'').toLowerCase();
+  if(/^[a-z0-9]{4}$/.test(j)){history.replaceState(null,'',location.pathname);const go=()=>{if(NET.state==='on'){NET.watch=false;enterRoom(j);}else setTimeout(go,700);};go();return;}
+  if(u.hash==='#lig'){history.replaceState(null,'',location.pathname+location.search);showTab('league');}
+}
 
 // ---------- Oyun içi hata bildirimi ----------
 const ERRLOG=[];const logErr=t=>{ERRLOG.push(new Date().toISOString().slice(11,19)+' '+String(t).slice(0,300));if(ERRLOG.length>20)ERRLOG.shift();};
@@ -2447,7 +2497,7 @@ function enterMain(){
   setTimeout(checkAdminRoute,300);DB.adminRpc('is_admin').then(v=>{IS_ADMIN=!!v;const b=$('adminBtn');if(b)b.hidden=!IS_ADMIN;}).catch(()=>{});
   DB.claimRewards().then(r=>{MYREW=Array.isArray(r)?r.filter(x=>cleanTier(x.tier)):[];pushLobby();if(NET.room)pushRoom();}).catch(()=>{});
   DB.myRating().then(r=>{MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};renderMe();pushLobby();}).catch(()=>{});
-  renderMe();showMain('rooms');netConnect();DB.myTeam().then(m=>{myTeamCache=m;renderMe();}).catch(()=>{});}
+  renderMe();showMain('rooms');netConnect();setTimeout(()=>handleDeepLink(),400);DB.myTeam().then(m=>{myTeamCache=m;renderMe();}).catch(()=>{});}
 (async()=>{
   show('gate');$('gNick').value=prof.name||'';$('gNum').value=/^[1-9][0-9]?$/.test(prof.avatar||'')&&prof.name?prof.avatar:'';$('gateGo').disabled=true;$('gateMsg').textContent='Bağlanıyor…';
   try{await backendInit();

@@ -458,3 +458,7 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 @media(min-width:700px){.bars .bar:nth-child(even) span{visibility:visible}}
 .rettb{width:100%;border-collapse:collapse;font-size:.9em}.rettb td,.rettb th{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left}.rettb .n{text-align:right}
 .tag.fun{background:rgba(120,190,255,.18);color:#bfe0ff}
+.pushrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.pushst{font-weight:700}.pushst.on{color:#5fd28b}
+.pushkinds{display:flex;flex-direction:column;gap:6px;margin:4px 0 6px}
+.pushkinds .toggle{font-size:.92em}
