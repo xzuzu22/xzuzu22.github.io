@@ -4,7 +4,7 @@ import { CFG } from './config.js';
 const COLORS=['#d63a2a','#2a62d6','#f2c230','#1f9d55','#ffffff','#111111','#ff7a1a','#7b3fd1','#18b6c9','#e64a8f','#7a1f2b','#0e2a5c'];
 const NAME_COLORS=['#ffffff','#f2c230','#ff6b5a','#5ab8ff','#6bf28a','#d38bff','#ff9a3d','#7ff4ff'];
 const PATTERNS=[['solid','Düz'],['stripes','Çizgili'],['half','Yarım'],['hoop','Bant'],['sash','Kuşak']];
-const DEF={name:'',avatar:'10',nameColor:'#ffffff',team:'Antrenman',abbr:'SEN',p:'#d63a2a',s:'#ffffff',pat:'solid',size:1,diff:1,time:180,skin:'classic',ambOn:true,amb:60,cel:'none',cam:1};
+const DEF={name:'',avatar:'10',nameColor:'#ffffff',team:'Antrenman',abbr:'SEN',p:'#d63a2a',s:'#ffffff',pat:'solid',size:1,diff:1,time:180,skin:'classic',ambOn:true,amb:60,cel:'none',cam:1,ball:'classic',trail:'none'};
 const SLOT=(new URLSearchParams(location.search).get('u')||'').replace(/[^a-z0-9]/gi,'').slice(0,8);
 let prof={...DEF};
 try{const s=JSON.parse(localStorage.getItem('uzk-profile'+SLOT)||'null'); if(s) prof={...DEF,...s};}catch(e){}
@@ -17,7 +17,7 @@ let curTab='rooms';
 function show(id){screens.forEach(s=>$(s).hidden=s!==id);
   if(id==='main')showTab(curTab);
   if(id==='roomScr')renderRoom();
-  if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('gchat').hidden=!on;if(!on)closeChat();}}
+  if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('emoteBtn').hidden=!on;$('emoteBar').hidden=true;$('gchat').hidden=!on;if(!on)closeChat();}}
 function showTab(t){curTab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   ['rooms','profile','team','league'].forEach(x=>$('tab-'+x).hidden=x!==t);
   if(t==='rooms'){renderOnline();renderDrills();loadFriends();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
@@ -132,7 +132,7 @@ let G=null;if(location.hash==="#dbg"){window.__G=()=>G;window.__wx=()=>bolt;wind
 function formation(n){const ys=[0,55,-55,110,-110];return Array.from({length:n},(_,i)=>[-SPAWN,ys[i]]);}
 
 function mkPlayer(t,i,o){return {x:0,y:0,vx:0,vy:0,r:PR,im:0.5,team:t,idx:i,pid:o.pid||('p'+t+i),human:!!o.human,local:!!o.local,remote:!!o.remote,gk:!!o.gk,
-  avatar:o.avatar,name:o.name,nameColor:o.nameColor||'#ffffff',tag:cleanTag(o.tag),cel:cleanCel(o.cel),g:0,a:0,kick:false,armed:true,ix:0,iy:0,tick:Math.floor(Math.random()*10),tx:0,ty:0,wantKick:false};}
+  avatar:o.avatar,name:o.name,nameColor:o.nameColor||'#ffffff',tag:cleanTag(o.tag),cel:cleanCel(o.cel),trail:cleanTrail(o.trail),g:0,a:0,kick:false,armed:true,ix:0,iy:0,tick:Math.floor(Math.random()*10),tx:0,ty:0,wantKick:false};}
 function startMatch(opt={}){
   audio();
   const players=[];let size,training=false,kits;
@@ -153,7 +153,7 @@ function startMatch(opt={}){
       if(training&&t===1)continue;
       formation(training?1:size).forEach((pos,i)=>{
         const human=t===0&&i===0;
-        players.push(mkPlayer(t,i,{human,local:human,gk:size>=2&&i===size-1,avatar:human?prof.avatar:String(i+1),name:human?prof.name:names.pop(),nameColor:human?prof.nameColor:'#ffffff',tag:human?myTag():'',cel:human?prof.cel:''}));
+        players.push(mkPlayer(t,i,{human,local:human,gk:size>=2&&i===size-1,avatar:human?prof.avatar:String(i+1),name:human?prof.name:names.pop(),nameColor:human?prof.nameColor:'#ffffff',tag:human?myTag():'',cel:human?prof.cel:'',trail:human?prof.trail:''}));
       });
     }
     if(training)size=1;
@@ -181,7 +181,7 @@ const MEDALS=['Bronz','Gümüş','Altın'],MEDAL_C=['#c98a55','#c9d1d9','#f2c230
 function drillMedal(kind,v){const D=DRILLS[kind];let m=-1;D.medals.forEach((t,i)=>{if(D.higher?v>=t:v<=t)m=i;});return m;}
 function startDrill(kind){
   const D=DRILLS[kind];if(!D)return;
-  const roster=[{pid:'me',team:0,human:true,local:true,avatar:prof.avatar,name:prof.name,nameColor:prof.nameColor,tag:myTag(),cel:prof.cel}];
+  const roster=[{pid:'me',team:0,human:true,local:true,avatar:prof.avatar,name:prof.name,nameColor:prof.nameColor,tag:myTag(),cel:prof.cel,trail:prof.trail}];
   if(kind==='keeper')roster.push({pid:'gk',team:1,human:false,avatar:'1',name:'Kaleci',nameColor:'#ffffff'});
   const uk=userKit();startMatch({roster,map:'classic',kits:[{...uk,name:prof.team,abbr:prof.abbr},{name:'Bot',abbr:'BOT',p:'#2a62d6',s:'#ffffff',pat:'solid'}],time:600,goals:0,skin:prof.skin,diff:prof.diff});
   G.training=true;G.drill={kind,n:0,score:0,t:0,att:0,gate:0,max:kind==='slalom'?1:10,limit:kind==='shoot'?360:kind==='keeper'?420:120*60,res:[]};
@@ -714,6 +714,76 @@ function drawWeather(){
     a*=reduceMotion?0.12:0.32;
     if(a>0.01){ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=`rgba(225,235,255,${a})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();}}
 }
+// ---------- Görünüm: top desenleri, iz efektleri, emojiler, arma ----------
+const BALLS={classic:'Klasik',football:'Futbol topu',gold:'Altın',neon:'Neon',fire:'Ateş',beach:'Plaj topu'};
+const TRAILS={none:'Yok',sparks:'Kıvılcım',smoke:'Duman',rainbow:'Gökkuşağı',comet:'Kuyruklu yıldız'};
+const EMOTES=['😂','😎','🔥','👏','😡','😭','🤝','⚽'];
+const cleanTrail=t=>TRAILS[t]?t:'none';
+const isEmote=t=>EMOTES.includes(t);
+const BTRAIL=[];
+function drawBall(c,x,y,r,skin,live){
+  skin=BALLS[skin]?skin:'classic';
+  if(live&&(skin==='fire'||skin==='neon')){BTRAIL.push([x,y]);if(BTRAIL.length>14)BTRAIL.shift();
+    for(let i=0;i<BTRAIL.length-1;i++){const [tx,ty]=BTRAIL[i],k=i/BTRAIL.length;c.globalAlpha=k*0.55;c.fillStyle=skin==='fire'?`hsl(${20+k*30},100%,${50+k*10}%)`:'#3ff';c.beginPath();c.arc(tx,ty,r*(0.4+k*0.6),0,Math.PI*2);c.fill();}c.globalAlpha=1;}
+  c.save();
+  if(skin==='neon'||skin==='fire'){c.shadowColor=skin==='neon'?'#3ff':'#ff7a1a';c.shadowBlur=r*1.6;}
+  let fill='#fff';
+  if(skin==='gold'){const g=c.createRadialGradient(x-r*.35,y-r*.35,r*.1,x,y,r);g.addColorStop(0,'#fff6c8');g.addColorStop(.45,'#f2c230');g.addColorStop(1,'#a8740a');fill=g;}
+  else if(skin==='neon')fill='#c9ffff';
+  else if(skin==='fire'){const g=c.createRadialGradient(x,y,r*.1,x,y,r);g.addColorStop(0,'#fff3b0');g.addColorStop(.5,'#ffb020');g.addColorStop(1,'#e8400c');fill=g;}
+  c.fillStyle=fill;c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();c.shadowBlur=0;
+  if(skin==='football'){c.save();c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.clip();c.fillStyle='#111';
+    const pent=(cx,cy,rr,rot)=>{c.beginPath();for(let i=0;i<5;i++){const a=rot+i*Math.PI*2/5;c.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);}c.closePath();c.fill();};
+    pent(x,y,r*.36,-Math.PI/2);for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5;pent(x+Math.cos(a)*r*.95,y+Math.sin(a)*r*.95,r*.32,a+Math.PI);}c.restore();}
+  if(skin==='beach'){const cols=['#e0483e','#f2c230','#2a62d6','#ffffff','#1f9d55','#ff7a1a'];for(let i=0;i<6;i++){c.fillStyle=cols[i];c.beginPath();c.moveTo(x,y);c.arc(x,y,r,i*Math.PI/3,(i+1)*Math.PI/3);c.closePath();c.fill();}
+    c.fillStyle='#fff';c.beginPath();c.arc(x,y,r*.22,0,Math.PI*2);c.fill();}
+  if(skin==='gold'){c.fillStyle='rgba(255,255,255,.7)';c.beginPath();c.ellipse(x-r*.35,y-r*.4,r*.28,r*.14,-0.6,0,Math.PI*2);c.fill();}
+  c.lineWidth=2;c.strokeStyle=skin==='neon'?'#0aa':'#000';c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.stroke();
+  c.restore();
+}
+function drawTrails(){
+  const now=performance.now();
+  for(const p of G.players){const t=p.trail;if(!t||t==='none')continue;
+    p.trl=p.trl||[];const sp=Math.hypot(p.x-(p.lx??p.x),p.y-(p.ly??p.y));p.lx=p.x;p.ly=p.y;
+    if(sp>0.6)p.trl.push({x:p.x,y:p.y,t:now,h:(now/6)%360});
+    while(p.trl.length&&now-p.trl[0].t>(t==='smoke'?700:420))p.trl.shift();
+    const L=p.trl.length;if(!L)continue;const life=t==='smoke'?700:420;
+    if(t==='rainbow'||t==='comet'){ctx.lineCap='round';for(let i=1;i<L;i++){const a=p.trl[i-1],b=p.trl[i],k=1-(now-b.t)/life;
+        ctx.strokeStyle=t==='rainbow'?`hsla(${b.h},90%,60%,${k*0.8})`:hexA(G.kits[p.team].p,k*0.7);ctx.lineWidth=p.r*1.1*k;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
+    else for(let i=0;i<L;i+=t==='sparks'?1:2){const q=p.trl[i],k=1-(now-q.t)/life;
+      if(t==='sparks'){ctx.fillStyle=`hsla(${40+((i*37)%30)},100%,${60+k*20}%,${k})`;const j=((i*73)%11-5)*1.2;ctx.beginPath();ctx.arc(q.x+j,q.y-j*0.7,1.5+k*2.5,0,Math.PI*2);ctx.fill();}
+      else{ctx.fillStyle=`rgba(210,215,210,${k*0.28})`;ctx.beginPath();ctx.arc(q.x,q.y,p.r*(1.2-k*0.6),0,Math.PI*2);ctx.fill();}}
+  }
+}
+function hexA(h,a){const n=parseInt(String(h).slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${Math.max(0,a)})`;}
+function drawBadge(cv,kit){const c=cv.getContext('2d'),W=cv.width,H=cv.height,b=kit&&kit.badge;c.clearRect(0,0,W,H);
+  if(!b){miniKit(cv,kit);return;}
+  const x=W/2,y=H/2,r=Math.min(W,H)/2-2;c.save();c.beginPath();
+  if(b.s==='shield'){c.moveTo(x-r*.85,y-r*.85);c.lineTo(x+r*.85,y-r*.85);c.lineTo(x+r*.85,y+r*.05);c.quadraticCurveTo(x+r*.8,y+r*.7,x,y+r);c.quadraticCurveTo(x-r*.8,y+r*.7,x-r*.85,y+r*.05);c.closePath();}
+  else if(b.s==='hex'){for(let i=0;i<6;i++){const a=Math.PI/6+i*Math.PI/3;c.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}c.closePath();}
+  else if(b.s==='star'){for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.55:r;c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}c.closePath();}
+  else c.arc(x,y,r,0,Math.PI*2);
+  c.fillStyle=kit.p;c.fill();c.lineWidth=Math.max(2,r*.12);c.strokeStyle=kit.s;c.stroke();
+  c.font=`${Math.round(r*(b.s==='star'?0.8:1.05))}px system-ui,'Apple Color Emoji','Segoe UI Emoji',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText(b.i,x,y+(b.s==='shield'?-r*.05:r*.04));c.restore();}
+function badgeEl(kit,size=20){const cv=document.createElement('canvas');cv.width=size*2;cv.height=size*2;cv.style.cssText=`width:${size}px;height:${size}px;vertical-align:middle;margin-right:6px`;drawBadge(cv,cleanKit(kit||{}));return cv;}
+function renderLooks(){
+  const bx=$('ballChips');if(bx&&!bx.childElementCount)for(const [k,n] of Object.entries(BALLS)){const b=document.createElement('button');b.className='chip lookchip';b.dataset.v=k;const cv=document.createElement('canvas');cv.width=44;cv.height=44;
+    const c=cv.getContext('2d');c.fillStyle='#2f6b34';c.fillRect(0,0,44,44);drawBall(c,22,22,13,k,false);b.append(cv,document.createTextNode(n));b.onclick=()=>{prof.ball=k;save();renderLooks();};bx.appendChild(b);}
+  const tx=$('trailChips');if(tx&&!tx.childElementCount)for(const [k,n] of Object.entries(TRAILS)){const b=document.createElement('button');b.className='chip';b.dataset.v=k;b.textContent=n;b.onclick=()=>{prof.trail=k;save();renderLooks();pushTag();};tx.appendChild(b);}
+  bx&&bx.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.v===(prof.ball||'classic'))));
+  tx&&tx.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.dataset.v===(prof.trail||'none'))));
+}
+function badgePicker(kit,onPick){
+  const w=document.createElement('div');w.className='bpick';const k={...kit};
+  const prev=document.createElement('canvas');prev.width=112;prev.height=112;prev.style.cssText='width:56px;height:56px';
+  const sh=document.createElement('div');sh.className='row';const ic=document.createElement('div');ic.className='row';
+  const upd=()=>{drawBadge(prev,k);onPick({...k});sh.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String((k.badge?k.badge.s:'none')===c.dataset.v)));ic.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(!!k.badge&&k.badge.i===c.dataset.v)));};
+  [['none','Arma yok'],['shield','Kalkan'],['circle','Yuvarlak'],['hex','Altıgen'],['star','Yıldız']].forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.dataset.v=v;b.textContent=l;b.onclick=()=>{k.badge=v==='none'?undefined:{s:v,i:(k.badge&&k.badge.i)||'⚽'};upd();};sh.appendChild(b);});
+  BADGE_IC.forEach(i=>{const b=document.createElement('button');b.type='button';b.className='chip';b.dataset.v=i;b.textContent=i;b.onclick=()=>{k.badge={s:(k.badge&&k.badge.s)||'shield',i};upd();};ic.appendChild(b);});
+  const lb=document.createElement('div');lb.className='lbl';lb.textContent='Takım arması';
+  w.append(lb,prev,sh,ic);setTimeout(upd);return w;
+}
+
 // ---------- Gol tekrarı ----------
 // Son ~5 saniyeyi 30 karede bir kaydeder; her golde kısa bir klip saklanır.
 const REC_HZ=30,REC_KEEP=REC_HZ*5,REC_TAIL=REC_HZ*1;
@@ -747,7 +817,7 @@ function drawRepFrame(c,x0,y0,w,h,f,kits,plist,opt={}){
     if(opt.hi===i){c.strokeStyle='rgba(242,194,48,.95)';c.lineWidth=3;c.beginPath();c.arc(v[0],v[1],p.r+7,0,Math.PI*2);c.stroke();}
     drawDisc(c,v[0],v[1],p.r,kits[p.team],p.avatar,{kick:!!v[2],name:opt.names?p.name:'',nameColor:p.nameColor,tag:opt.names?p.tag:''});});
   if(opt.trail){c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=3;c.beginPath();opt.trail.forEach((b,k)=>k?c.lineTo(b[0],b[1]):c.moveTo(b[0],b[1]));c.stroke();}
-  c.fillStyle='#fff';c.beginPath();c.arc(f.b[0],f.b[1],G.ball.r,0,Math.PI*2);c.fill();c.lineWidth=2;c.strokeStyle='#000';c.stroke();
+  drawBall(c,f.b[0],f.b[1],G.ball.r,prof.ball,false);
   c.restore();
 }
 function drawPip(){
@@ -830,13 +900,14 @@ function draw(){
   }
   for(const q of posts){ctx.fillStyle=G.kits[q.team].p;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke();}
   if(G.drill)drawDrill();
+  drawTrails();
   drawCel('under');
   // oyuncular
   for(const p of G.players){
     if(p.local){ctx.strokeStyle='rgba(242,194,48,.9)';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(p.x,p.y,p.r+6,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
     drawDisc(ctx,p.x,p.y,p.r,G.kits[p.team],p.avatar,{kick:p.kick,name:p.name,nameColor:p.nameColor,tag:p.tag});
   }
-  const b=G.ball;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke();
+  const b=G.ball;drawBall(ctx,b.x,b.y,b.r,prof.ball,true);
   drawWeather();
   drawCel('over');
   drawOffMe();
@@ -901,7 +972,8 @@ const TAB=Math.random().toString(36).slice(2,10);
 let sb=null,uid=null,isAnon=true,userEmail='';
 const cleanStr=(s,n)=>String(s==null?'':s).replace(/[\u0000-\u001f\u007f]/g,'').slice(0,n);
 const cleanCol=c=>/^#[0-9a-f]{6}$/i.test(c)?c:'#ffffff';
-const cleanKit=k=>({p:cleanCol(k&&k.p),s:cleanCol(k&&k.s),pat:PATTERNS.some(x=>x[0]===(k&&k.pat))?k.pat:'solid'});
+const cleanKit=k=>{const o={p:cleanCol(k&&k.p),s:cleanCol(k&&k.s),pat:PATTERNS.some(x=>x[0]===(k&&k.pat))?k.pat:'solid'};const b=k&&k.badge;if(b&&BADGE_SH.includes(b.s)&&BADGE_IC.includes(b.i))o.badge={s:b.s,i:b.i};return o;};
+const BADGE_SH=['shield','circle','hex','star'],BADGE_IC=['⚽','🦅','🐺','🦁','⚡','🔥','👑','⭐','🐉','🌙','⚓','🗡️'];
 
 async function backendInit(){
   if(LIVE){
@@ -1358,7 +1430,7 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 
 function pushRoom(){
   if(!NET.room)return;
-  const pr={nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
+  const pr={nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
   if(NET.isHost)Object.assign(pr,{H:1,code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
@@ -1509,10 +1581,10 @@ document.querySelectorAll('#roomScr .join').forEach(b=>b.onclick=()=>{NET.want=b
 $('hsStart').onclick=()=>{
   const ps=named(NET.room.peers());const roster=[];
   for(const p of ps){const t=NET.teams[p.peer];if(t!=='red'&&t!=='blue')continue;const pr=p.presence;
-    roster.push({pid:p.peer,team:t==='red'?0:1,human:true,local:p.sameTab,remote:!p.sameTab,avatar:cleanStr(pr.av,2)||'?',name:cleanBad(cleanStr(pr.nick,14)),nameColor:cleanCol(pr.nc),tag:cleanTag(pr.tg),cel:cleanCel(pr.cel),rating:Number(pr.r)||1000});}
+    roster.push({pid:p.peer,team:t==='red'?0:1,human:true,local:p.sameTab,remote:!p.sameTab,avatar:cleanStr(pr.av,2)||'?',name:cleanBad(cleanStr(pr.nick,14)),nameColor:cleanCol(pr.nc),tag:cleanTag(pr.tg),cel:cleanCel(pr.cel),rating:Number(pr.r)||1000,trail:cleanTrail(pr.tr)});}
   for(const b of NET.bots)roster.push({pid:b.id,team:b.team,rating:850,human:false,local:false,remote:false,avatar:cleanStr(b.av,2),name:cleanStr(b.name,14),nameColor:'#ffffff'});
   if(!roster.some(r=>r.team===0)||!roster.some(r=>r.team===1)){$('rStatus').textContent='Maç için iki takımda da en az bir oyuncu ya da bot olmalı.';return;}
-  NET.ro=roster.map(r=>[r.pid,r.team,r.avatar,r.name,r.nameColor,r.human?1:0,r.tag||'',r.cel||'',r.rating||1000]);NET.phase='game';NET.pubN=0;
+  NET.ro=roster.map(r=>[r.pid,r.team,r.avatar,r.name,r.nameColor,r.human?1:0,r.tag||'',r.cel||'',r.rating||1000,r.trail||'none']);NET.phase='game';NET.pubN=0;
   pushRoom();pushLobby();
   const mt=NET.teams[TAB];
   startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
@@ -1544,7 +1616,7 @@ function buildClientGame(pr){
   setMap(MAPS[pr.cfg.map]?pr.cfg.map:'classic');
   const kits=[kitOf(pr.cfg.kits?pr.cfg.kits[0]:0),kitOf(pr.cfg.kits?pr.cfg.kits[1]:1)];
   const cnt=[0,0];const players=pr.ro.filter(r=>Array.isArray(r)&&(r[1]===0||r[1]===1)).map(r=>{const t=r[1];const i=cnt[t]++;
-    return {pid:String(r[0]),team:t,idx:i,human:!!r[5],local:r[0]===TAB,remote:false,avatar:cleanStr(r[2],2),name:cleanBad(cleanStr(r[3],14)),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),rating:Math.max(100,Math.min(3000,Number(r[8])||1000)),g:0,a:0,x:0,y:0,tx:0,ty:0,r:PR,kick:false};});
+    return {pid:String(r[0]),team:t,idx:i,human:!!r[5],local:r[0]===TAB,remote:false,avatar:cleanStr(r[2],2),name:cleanBad(cleanStr(r[3],14)),nameColor:cleanCol(r[4]),tag:cleanTag(r[6]),cel:cleanCel(r[7]),rating:Math.max(100,Math.min(3000,Number(r[8])||1000)),trail:cleanTrail(r[9]),g:0,a:0,x:0,y:0,tx:0,ty:0,r:PR,kick:false};});
   const mine=players.find(p=>p.local);
   G={net:{role:'client'},players,ball:{x:0,y:0,tx:0,ty:0,r:BR},kits,score:[0,0],clock:pr.cfg.time||180,state:'play',golden:false,paused:false,
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
@@ -1598,12 +1670,16 @@ function closeChat(){gForm.hidden=true;gQuick.hidden=true;gIn.blur();}
 gForm.addEventListener('submit',e=>{e.preventDefault();sendChat('room',gIn.value);closeChat();});
 gIn.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeChat();}e.stopPropagation();});
 $('chatBtn').onclick=()=>chatOpen()?closeChat():openChat();
+EMOTES.forEach(e=>{const b=document.createElement('button');b.type='button';b.textContent=e;b.onclick=()=>{sendChat('room',e);$('emoteBar').hidden=true;};$('emoteBar').appendChild(b);});
+$('emoteBtn').onclick=()=>{$('emoteBar').hidden=!$('emoteBar').hidden;};
 function pushGameChat(e){const log=$('gchatLog');const d=document.createElement('div');const b=nickEl(e.tg,e.nick+': ',e.me?'var(--flood)':e.col);d.append(b,document.createTextNode(e.text));log.appendChild(d);
   while(log.childElementCount>6)log.firstChild.remove();setTimeout(()=>d.classList.add('old'),7000);setTimeout(()=>d.remove(),7800);}
 function drawBubbles(){
   if(!G||!G.bubbles)return;const now=performance.now();
   for(const p of G.players){const bb=G.bubbles[p.pid];if(!bb||bb.until<now)continue;
-    const a=Math.min(1,(bb.until-now)/400);ctx.save();ctx.globalAlpha=a;ctx.font='600 12px Inter,system-ui,sans-serif';
+    const a=Math.min(1,(bb.until-now)/400);ctx.save();ctx.globalAlpha=a;
+    if(isEmote(bb.text)){const age=now-(bb.until-4200),sc=age<180?0.4+age/180*0.8:age<300?1.2-(age-180)/120*0.2:1;ctx.font=`${Math.round(30*sc)}px system-ui,'Apple Color Emoji','Segoe UI Emoji',sans-serif`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(bb.text,p.x,p.y-p.r-6-Math.min(10,age/60));ctx.restore();continue;}
+    ctx.font='600 12px Inter,system-ui,sans-serif';
     const t=bb.text.length>28?bb.text.slice(0,27)+'…':bb.text;const w=ctx.measureText(t).width+14,h=20,x=p.x-w/2,y=p.y-p.r-h-10;
     ctx.fillStyle='rgba(255,255,255,.95)';ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,8):ctx.rect(x,y,w,h);ctx.fill();
     ctx.beginPath();ctx.moveTo(p.x-5,y+h);ctx.lineTo(p.x+5,y+h);ctx.lineTo(p.x,y+h+6);ctx.fill();
@@ -1670,7 +1746,7 @@ $('statOv').addEventListener('click',e=>{if(e.target.id==='statOv')$('statOv').h
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('statOv').hidden)$('statOv').hidden=true;});
 async function renderMyStats(){const box=$('myStats');if(!box)return;box.innerHTML='<p class="note">Yükleniyor…</p>';
   try{statsView(box,await DB.playerSummary(uid));}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
-function renderProfile(){renderMyStats();
+function renderProfile(){renderMyStats();renderLooks();
   $('inName').value=prof.name;$('inAvatar').value=prof.avatar;
   const box=$('nameColors');box.innerHTML='';
   NAME_COLORS.forEach(col=>{const b=document.createElement('button');b.className='sw';b.style.background=col;b.setAttribute('aria-label',col);b.setAttribute('aria-pressed',String(prof.nameColor===col));
@@ -1728,7 +1804,7 @@ async function renderTeam(){
   const t=mt.team,cap=mt.role==='kaptan',kit=cleanKit(t.kit);
   const head=document.createElement('div');head.className='panel';
   head.innerHTML='<h2><canvas width="56" height="56" style="width:28px;height:28px"></canvas><span class="tn"></span> <span class="tag ab"></span></h2><div class="note info"></div>';
-  head.querySelector('.tn').textContent=t.name;head.querySelector('.ab').textContent=t.abbr;miniKit(head.querySelector('canvas'),kit);
+  head.querySelector('.tn').textContent=t.name;head.querySelector('.ab').textContent=t.abbr;drawBadge(head.querySelector('canvas'),cleanKit(t.kit||kit));
   head.querySelector('.info').textContent=`${t.tier}. Lig · ${t.points} puan · ${t.played} maç (${t.won}G ${t.drawn}B ${t.lost}M) · averaj ${t.gf-t.ga>=0?'+':''}${t.gf-t.ga} · rolün: ${cap?'Kaptan':'Oyuncu'}`;
   P.appendChild(head);
   const grid=document.createElement('div');grid.className='cols2';P.appendChild(grid);
@@ -1743,7 +1819,7 @@ async function renderTeam(){
   if(cap){side.innerHTML='<h2>Davet</h2><p class="note">Bu kodu takım arkadaşlarına gönder. Takım sekmesinde "Takıma katıl"a yazsınlar.</p><div class="row" style="align-items:center"><span class="codebox" id="tcode">…</span><button class="chip" id="tcopy">Kopyala</button></div><h2 style="margin-top:8px">Takım forması</h2><div id="tkit"></div><button class="chip" id="tkitSave">Formayı kaydet</button><p class="note" id="tkitMsg"></p>';
     DB.teamCode(t.id).then(c=>{side.querySelector('#tcode').textContent=c||'—';}).catch(()=>{side.querySelector('#tcode').textContent='alınamadı';});
     side.querySelector('#tcopy').onclick=()=>{const c=side.querySelector('#tcode').textContent;try{navigator.clipboard.writeText(c);side.querySelector('#tcopy').textContent='Kopyalandı';}catch(e){}};
-    let nk=kit;side.querySelector('#tkit').appendChild(kitPicker(kit,k=>nk=k));
+    let nk={...cleanKit(t.kit||kit)};side.querySelector('#tkit').appendChild(kitPicker(nk,k=>nk={...k,badge:nk.badge}));side.querySelector('#tkit').appendChild(badgePicker(nk,k=>nk={...nk,badge:k.badge}));
     side.querySelector('#tkitSave').onclick=async()=>{try{await DB.updateKit(t.id,cleanKit(nk));side.querySelector('#tkitMsg').textContent='Forma kaydedildi.';myTeamCache.team.kit=cleanKit(nk);renderMe();}catch(e){side.querySelector('#tkitMsg').textContent=errText(e);}};
   } else side.innerHTML='<h2>Takım</h2><p class="note">Formayı ve kadroyu kaptan yönetir. Lig maçları için kaptanınla haberleş.</p>';
   const lv=document.createElement('button');lv.className='ghost';lv.style.justifyContent='center';lv.textContent=cap?'Takımdan ayrıl (kaptanlık en eski oyuncuya geçer)':'Takımdan ayrıl';
@@ -1850,7 +1926,7 @@ async function renderLeague(){
       list.forEach((t,i)=>{const tr=document.createElement('tr');const cls=[];if(t.id===myId)cls.push('me');
         if(zones&&tier>1&&i<2)cls.push('zup');if(zones&&tier<6&&i>=list.length-2)cls.push('zdown');if(zones&&tier===1&&i===0)cls.push('zchamp');tr.className=cls.join(' ');
         tr.innerHTML=`<td>${i+1}</td><td></td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.gf-t.ga}</td><td class="n">${t.points}</td>`;
-        tr.children[1].textContent=t.name+' ('+t.abbr+')';tb.appendChild(tr);});
+        tr.children[1].append(badgeEl(t.kit,18),document.createTextNode(t.name+' ('+t.abbr+')'));tb.appendChild(tr);});
       wrap.appendChild(tb);sec.appendChild(wrap);
       const fx=lm.filter(m=>m.tier===tier&&(m.status==='accepted'||m.status==='played'||m.status==='reported')).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
       const up=fx.filter(m=>m.status!=='played').slice(0,6),done=fx.filter(m=>m.status==='played').slice(-6).reverse();

@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=92c1339">
+<link rel="stylesheet" href="style.css?v=18f7277">
 </head>
 <body>
 
@@ -135,6 +135,12 @@
           <div class="lbl">Gol sevinci <span class="pro">Premium</span></div>
           <div class="row" id="celChips"><button class="chip" data-v="none">Yok</button><button class="chip" data-v="confetti">🎊 Konfeti</button><button class="chip" data-v="fireworks">🎆 Havai fişek</button><button class="chip" data-v="fire">🔥 Ateş izi</button><button class="chip" data-v="banner">🏆 Altın pankart</button></div>
           <p class="note" style="margin-top:-4px">Gol atınca seçtiğin sevinç oynar, odadaki herkes görür.</p>
+          <div class="lbl">Top deseni <span class="pro">Premium</span></div>
+          <div class="row" id="ballChips"></div>
+          <p class="note" style="margin-top:-4px">Top deseni sadece senin ekranında görünür.</p>
+          <div class="lbl">Koşu izi <span class="pro">Premium</span></div>
+          <div class="row" id="trailChips"></div>
+          <p class="note" style="margin-top:-4px">Koşarken arkanda bıraktığın iz; odadaki herkes görür.</p>
           <p class="note" id="saveState"></p>
         </div>
         <div class="panel">
@@ -267,6 +273,8 @@
     <label class="ambrow">Ses <input type="range" id="ambVol" min="0" max="100" step="5" value="60"><span id="ambVolTxt">%60</span></label>
   </div>
   <button class="gbtn" id="chatBtn" hidden aria-label="Sohbet">💬 Sohbet</button>
+  <button class="gbtn" id="emoteBtn" hidden aria-label="Emoji">😀</button>
+  <div class="emotebar" id="emoteBar" hidden></div>
   <div class="gchat" id="gchat"><div class="log" id="gchatLog"></div><div class="quick" id="gchatQuick" hidden></div><form id="gchatForm" hidden><input type="text" id="gchatIn" maxlength="80" placeholder="Mesaj yaz, Enter ile gönder" autocomplete="off"><button class="chip" type="submit">Gönder</button></form></div>
   <div class="banner" id="banner">GOL!</div>
   <button id="kickBtn" class="touch-only" aria-label="Şut">ŞUT</button>
@@ -288,7 +296,7 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=92c1339"></script>
+<script type="module" src="app.js?v=18f7277"></script>
 <div class="invtoast" id="invToast" hidden></div>
 </body>
 </html>

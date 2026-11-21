@@ -358,3 +358,12 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .bact{display:flex;gap:6px;flex-wrap:wrap;padding:6px 8px;border-top:1px solid var(--line)}
 .bchamp{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:34px;padding:12px;border:1px solid var(--flood);border-radius:10px}.bchamp b{font-size:15px;color:var(--flood)}
 .cupmsg:empty{display:none}
+/* görünüm ürünleri */
+.lookchip{display:inline-flex;align-items:center;gap:6px;padding-left:4px}
+.lookchip canvas{width:22px;height:22px;border-radius:50%}
+#emoteBtn{left:calc(max(10px,env(safe-area-inset-left,0px)) + 196px)}
+.emotebar{position:absolute;top:56px;left:max(10px,env(safe-area-inset-left,0px));display:flex;gap:4px;flex-wrap:wrap;max-width:300px;padding:6px;border-radius:12px;background:rgba(6,14,9,.85);border:1px solid var(--line);z-index:6}
+.emotebar button{font-size:26px;width:44px;height:44px;border:0;border-radius:10px;background:transparent;cursor:pointer}
+.emotebar button:hover{background:rgba(255,255,255,.1)}
+.bpick{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.bpick .row .chip[aria-pressed="true"]{background:var(--flood);color:#111;border-color:var(--flood)}
