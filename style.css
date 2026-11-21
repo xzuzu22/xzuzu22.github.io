@@ -308,3 +308,11 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .repform{display:flex;flex-direction:column;gap:8px;width:100%;text-align:left}
 .repform .chips{display:flex;flex-wrap:wrap;gap:6px}
 .repform .chip[aria-pressed="true"]{background:var(--danger);border-color:var(--danger);color:#fff}
+/* beceri puanı */
+.rk{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:800;color:#111;background:var(--rk);line-height:1.5;vertical-align:middle}
+.rankbar{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;margin:10px 0 4px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left}
+.rankbar b{color:var(--rk);font-family:var(--f-display);font-size:20px;letter-spacing:.04em}
+.rankbar span{font-size:13px;color:var(--muted);justify-self:end}
+.rankbar i{grid-column:1/-1;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.rankbar em{display:block;height:100%;background:var(--rk);border-radius:99px}
+.rdelta{font-size:13px;font-weight:700;margin:2px 0 6px}.rdelta.up{color:#7fe0aa}.rdelta.dn{color:#ff9a8f}
