@@ -947,8 +947,8 @@ requestAnimationFrame(loop);
 function togglePause(){if(!G||G.state==='over')return;if(G.net&&G.net.role==='client'){$('resumeBtn').textContent='Oyuna dön';$('quitBtn').textContent='Oda ekranına git';$('pauseOv').hidden=!$('pauseOv').hidden;return;}G.paused=!G.paused;$('pauseOv').hidden=!G.paused;}
 $('pauseBtn').onclick=togglePause;$('resumeBtn').onclick=()=>{if(G&&G.net&&G.net.role==='client'){$('pauseOv').hidden=true;return;}togglePause();};
 $('specBack').onclick=()=>{NET.watch=false;show('roomScr');renderRoom();};
-$('quitBtn').onclick=()=>{if(G&&G.net){$('pauseOv').hidden=true;if(G.net.role==='host'){G.paused=false;hostBackToRoom();}else show('roomScr');return;}G=null;showMain('rooms');};
-$('endMenu').onclick=()=>{if(G&&G.net){if(G.net.role==='host')hostBackToRoom();G=null;leaveRoom(false);return;}G=null;showMain('rooms');};
+$('quitBtn').onclick=async()=>{if(G&&G.net){if(G.net.role==='host'&&inRankedMatch()){if(!confirmLeave())return;await penalizeLeave();}$('pauseOv').hidden=true;if(G&&G.net&&G.net.role==='host'){G.paused=false;hostBackToRoom();}else show('roomScr');return;}G=null;showMain('rooms');};
+$('endMenu').onclick=()=>{clearRanked('end');if(G&&G.net){if(G.net.role==='host')hostBackToRoom();G=null;leaveRoom(false);return;}G=null;showMain('rooms');};
 $('againBtn').onclick=()=>{if(G&&G.drill){startDrill(G.drill.kind);return;}if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
 $('playBtn').onclick=()=>startMatch({});
 $('rotateOk').onclick=()=>{$('rotate').style.display='none';};
@@ -1071,11 +1071,17 @@ const DB={
     if(!LIVE){const d=MOCKDB.get();d.ratings=d.ratings||{};const r=d.ratings[uid]||{rating:1000,games:0};const k=r.games<10?40:24;const e=1/(1+Math.pow(10,(opp-team)/400));const s2=gf>ga?1:gf===ga?.5:0;
       const dd=Math.round(k*(s2-e)+(s2!==.5?Math.max(-3,Math.min(3,gf-ga)):0));r.rating=Math.max(100,r.rating+dd);r.games++;d.ratings[uid]=r;MOCKDB.put(d);return r.rating;}
     const {data,error}=await sb.rpc('record_rating',{p_team:team,p_opp:opp,p_gf:gf,p_ga:ga});if(error)throw error;return data;},
+  async matchBegin(key){
+    if(!LIVE){const d=MOCKDB.get();if(d.active&&d.active.k!==key)mockLeave(d);d.active={k:key,at:Date.now()};MOCKDB.put(d);return;}
+    const {error}=await sb.rpc('match_begin',{p_key:key});if(error)throw error;},
+  async matchDone(reason){
+    if(!LIVE){const d=MOCKDB.get();if(d.active){if(reason==='leave')mockLeave(d);else d.active=null;}MOCKDB.put(d);return;}
+    const {error}=await sb.rpc('match_done',{p_reason:reason});if(error)throw error;},
   async report(target,reason,ctx){
     if(!LIVE){const d=MOCKDB.get();(d.reports=d.reports||[]).push({reporter:uid,target,reason,ctx,at:Date.now()});MOCKDB.put(d);return;}
     const {error}=await sb.rpc('report_player',{p_target:target,p_reason:reason,p_ctx:ctx});if(error)throw error;},
   async restrictions(){
-    if(!LIVE)return {};
+    if(!LIVE){const d=MOCKDB.get();return {leave_ban_until:d.leaveBan&&d.leaveBan>Date.now()?new Date(d.leaveBan).toISOString():null,leaves_total:d.leaves||0};}
     const {data,error}=await sb.rpc('my_restrictions');if(error)throw error;return data||{};},
   async cupTick(){
     if(!LIVE){const d=MOCKDB.get();d.cups=d.cups||[];if(!d.cups.length){const t=new Date();t.setDate(t.getDate()+((6-t.getDay()+7)%7));t.setHours(21,0,0,0);if(t<new Date())t.setDate(t.getDate()+7);d.cups.push({id:'cup1',name:'Hafta Sonu Kupası',starts_at:t.toISOString(),status:'open',size:8,winner:null,entries:[],matches:[]});MOCKDB.put(d);}return d.cups[d.cups.length-1].id;}
@@ -1114,6 +1120,7 @@ const DB={
     if(!LIVE){const d=MOCKDB.get();if(d.teams[teamId])d.teams[teamId].kit=kit;MOCKDB.put(d);return;}
     const {error}=await sb.from('teams').update({kit}).eq('id',teamId);if(error)throw error;},
 };
+function mockLeave(d){d.active=null;d.ratings=d.ratings||{};const r=d.ratings[uid]||{rating:1000,games:0};r.rating=Math.max(100,r.rating-20);d.ratings[uid]=r;d.leaveBan=Date.now()+60e3;d.leaves=(d.leaves||0)+1;}
 const errText=e=>{const m=(e&&(e.message||e.error_description))||String(e);
   if(/duplicate key|unique/i.test(m))return 'Bu isimde bir takım zaten var.';
   if(/already in a team|zaten/i.test(m))return 'Zaten bir takımdasın.';
@@ -1307,6 +1314,15 @@ const hasBad=t=>String(t).split(/\s+/).some(isBad);
 const isMuted=u=>!!u&&Array.isArray(prof.muted)&&prof.muted.includes(u);
 function toggleMute(u){if(!u)return;prof.muted=Array.isArray(prof.muted)?prof.muted:[];if(isMuted(u))prof.muted=prof.muted.filter(x=>x!==u);else prof.muted=[...prof.muted,u].slice(-200);save();NET.logs.room&&NET.logs.room.clear();NET.logs.lobby&&NET.logs.lobby.clear();$('lcLog').innerHTML='';$('rcLog').innerHTML='';try{renderChat('lobby',NET.lobby,$('lcLog'));if(NET.room)renderChat('room',NET.room,$('rcLog'));}catch(e){}}
 const MOD={muted_until:null,banned_until:null};
+// ---------- Maç terk cezası ----------
+const leaveBanLeft=()=>MOD.leave_ban_until?Math.max(0,new Date(MOD.leave_ban_until)-Date.now()):0;
+function leaveBanMsg(){const ms=leaveBanLeft();const m=Math.floor(ms/60e3),s2=Math.ceil(ms%60e3/1e3);return `Maçı yarıda bıraktığın için ${m?m+' dk ':''}${s2} sn daha maç bulamazsın. Bu sürede antrenman yapabilir ya da maç izleyebilirsin.`;}
+const inRankedMatch=()=>!!(G&&G.ranked&&!G.ended&&G.state!=='over');
+async function refreshAfterLeave(){try{Object.assign(MOD,await DB.restrictions());}catch(e){}try{const r=await DB.myRating();MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};}catch(e){}renderMe();pushLobby();}
+async function penalizeLeave(){if(!G||!G.ranked)return;G.ranked=false;try{await DB.matchDone('leave');}catch(e){}await refreshAfterLeave();$('netMsg').textContent='Maçı yarıda bıraktın: −20 beceri puanı ve 1 dakika maç bulma cezası.';}
+function clearRanked(reason){if(!G||!G.ranked)return;G.ranked=false;DB.matchDone(reason).catch(()=>{});}
+function confirmLeave(){return window.confirm('Maç sürüyor. Şimdi çıkarsan beceri puanından 20 düşer ve 1 dakika maç bulamazsın. Yine de çıkmak istiyor musun?');}
+addEventListener('beforeunload',e=>{if(inRankedMatch()){e.preventDefault();e.returnValue='';}});
 // ---------- Beceri puanı ----------
 let MYR={r:1000,g:0};
 const RANKS=[[0,'Bronz','#c98a55'],[900,'Gümüş','#c9d1d9'],[1100,'Altın','#f2c230'],[1300,'Platin','#5fd3c6'],[1500,'Elmas','#7fb2ff'],[1700,'Usta','#e07bff']];
@@ -1388,6 +1404,7 @@ function bindDraft(id,key,num=true){const box=$(id);const sync=()=>box.querySele
   box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{roomDraft[key]=num?Number(c.dataset.v):c.dataset.v;sync();});sync();}
 bindDraft('rdMap','map',false);bindDraft('rdMax','max');bindDraft('rdTime','time');bindDraft('rdGoals','goals');
 function createRoom(cfg){
+  if(leaveBanLeft()){$('netMsg').textContent=leaveBanMsg();showMain('rooms');return;}
   NET.isHost=true;
   NET.cfg={kits:[0,1],free:true,skin:SKINS[prof.skin]?prof.skin:'classic',...cfg};
   NET.teams={};NET.wantSeen={};NET.bots=[];NET.phase='lobby';NET.ro=null;NET.want='red';
@@ -1404,6 +1421,7 @@ $('quickBtn').onclick=()=>{ // en kalabalık, yeri olan, lobideki odaya gir; yok
 };
 async function enterRoom(code,autoTeam){
   if(!NET.lobby)return;
+  if(leaveBanLeft()&&!NET.watch){$('netMsg').textContent=leaveBanMsg();showMain('rooms');return;}
   if(NET.room)await leaveRoom(true);
   const room=makeRoom('uzk-r-'+code);
   $('netMsg').textContent='Odaya bağlanılıyor…';
@@ -1420,8 +1438,9 @@ async function enterRoom(code,autoTeam){
   pushRoom();pushLobby();
   $('rCode').textContent=code;show('roomScr');renderRoom();
 }
-async function leaveRoom(silent){
+async function leaveRoom(silent,why){
   const r=NET.room;if(!r)return;
+  if(inRankedMatch()){if(why)clearRanked(why);else await penalizeLeave();}
   NET.room=null;NET.isHost=false;NET.cfg=null;NET.watch=false;NET.ro=null;NET.phase='lobby';NET.roKey=null;
   if(G&&G.net){G=null;}
   rtcReset();
@@ -1429,8 +1448,8 @@ async function leaveRoom(silent){
   pushLobby();
   if(!silent){showMain('rooms');}
 }
-function closeRoom(msg){leaveRoom(false);$('netMsg').textContent=msg;}
-$('leaveRoom').onclick=()=>leaveRoom(false);
+function closeRoom(msg,why='host'){leaveRoom(false,why).then(()=>{$('netMsg').textContent=msg;});}
+$('leaveRoom').onclick=()=>{if(inRankedMatch()&&!confirmLeave())return;leaveRoom(false);};
 $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyCode');b.textContent=ok?'Kopyalandı':'Kod: '+t;setTimeout(()=>{b.innerHTML='Kod: <b id="rCode"></b>';$('rCode').textContent=NET.code||'';},1400);};
   try{navigator.clipboard.writeText(t).then(()=>done(true),()=>done(false));}catch(e){done(false);}};
 
@@ -1466,7 +1485,7 @@ function onRoomPeers(){
   else{
     const h=hostPeerOf(NET.room);
     if(h){NET.hostSeenAt=Date.now();const t=h.presence.teams&&h.presence.teams[TAB];
-      if(t==='kicked'){const bans=(hostPeerOf(NET.room)||{presence:{cfg:{}}}).presence.cfg?.bans;closeRoom(Array.isArray(bans)&&bans.includes(uid)?'Bu odaya girmen oda sahibi tarafından yasaklandı.':'Oda sahibi seni odadan çıkardı.');return;}
+      if(t==='kicked'){clearRanked('kick');const bans=(hostPeerOf(NET.room)||{presence:{cfg:{}}}).presence.cfg?.bans;closeRoom(Array.isArray(bans)&&bans.includes(uid)?'Bu odaya girmen oda sahibi tarafından yasaklandı.':'Oda sahibi seni odadan çıkardı.');return;}
       if(t==='full'){closeRoom('Oda dolu.');return;}
       clientSync(h);}
   }
@@ -1595,6 +1614,7 @@ $('hsStart').onclick=()=>{
   const mt=NET.teams[TAB];
   startMatch({roster,map:NET.cfg.map,kits:[kitOf(NET.cfg.kits[0]),kitOf(NET.cfg.kits[1])],time:NET.cfg.time,goals:NET.cfg.goals,skin:NET.cfg.skin,net:{role:'host'},myTeam:mt==='red'?0:mt==='blue'?1:-1,diff:1});
   sendSys('Maç başladı!');
+  if(roster.filter(r=>r.human).length>=2&&(mt==='red'||mt==='blue')){G.ranked=true;DB.matchBegin(NET.code).catch(()=>{});}
 };
 function netHostInputs(){return NET.inputs;}
 function netHostPublish(){
@@ -1616,7 +1636,7 @@ function clientSync(h){
     const key=JSON.stringify(pr.ro)+'|'+pr.cfg.map;
     if(NET.roKey!==key){NET.roKey=key;buildClientGame(pr);}
   } else if(NET.roKey){NET.roKey=null;
-    if(G&&G.net&&G.net.role==='client'){const showingEnd=!$('game').hidden&&!$('endOv').hidden;if(!showingEnd){G=null;show('roomScr');}}}
+    if(G&&G.net&&G.net.role==='client'){clearRanked('host');const showingEnd=!$('game').hidden&&!$('endOv').hidden;if(!showingEnd){G=null;show('roomScr');}}}
 }
 function buildClientGame(pr){
   setMap(MAPS[pr.cfg.map]?pr.cfg.map:'classic');
@@ -1628,6 +1648,7 @@ function buildClientGame(pr){
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
+  if(mine&&players.filter(p=>p.human).length>=2){G.ranked=true;DB.matchBegin(NET.code).catch(()=>{});}
   if(mine){show('game');resize();sWhistle(0.45,1);}else if(NET.watch){show('game');resize();renderHud();}else renderRoom();
 }
 function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;NET.snap=g;}
@@ -1656,6 +1677,7 @@ function clientFrame(){
       if(dc){try{dc.send(JSON.stringify({in:q}));}catch(e){}}else if(s!==NET.lastInRelay||now-(NET.lastRelayAt||0)>300){NET.lastInRelay=s;NET.lastRelayAt=now;NET.room.send('in',{from:TAB,q});}}}
 }
 function showEnd(){
+  clearRanked('end');
   const [a,c]=G.score,my=G.myTeam;
   $('endScore').textContent=`${a} – ${c}`;$('endLbl').textContent=`${G.kits[0].abbr} · ${G.kits[1].abbr}`;
   $('endMsg').textContent=my<0?(a===c?'Berabere.':(a>c?G.kits[0].name:G.kits[1].name)+' kazandı.'):((my===0?a>c:c>a)?'Kazandınız!':a===c?'Berabere.':'Kaybettiniz. Rövanş isteyin.');
@@ -1751,7 +1773,7 @@ function reportForm(box,u,nick){
 $('statOv').addEventListener('click',e=>{if(e.target.id==='statOv')$('statOv').hidden=true;});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('statOv').hidden)$('statOv').hidden=true;});
 async function renderMyStats(){const box=$('myStats');if(!box)return;box.innerHTML='<p class="note">Yükleniyor…</p>';
-  try{statsView(box,await DB.playerSummary(uid));}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
+  try{statsView(box,await DB.playerSummary(uid));if(MOD.leaves_total){const n=document.createElement('p');n.className='note leavenote';n.textContent=`Yarıda bıraktığın maç: ${MOD.leaves_total}`+(MOD.leaves_24h?` (son 24 saatte ${MOD.leaves_24h})`:'')+'. Her terk −20 beceri puanı ve 1 dakika maç bulma cezası getirir.';box.appendChild(n);}}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
 function renderProfile(){renderMyStats();renderLooks();
   $('inName').value=prof.name;renderJersey();
   const box=$('nameColors');box.innerHTML='';

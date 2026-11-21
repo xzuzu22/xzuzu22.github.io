@@ -376,3 +376,4 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .store .item .chip{margin-top:auto;align-self:flex-start}
 #gateForm .lbl{white-space:nowrap}
 #gNum{text-align:center}
+.leavenote{color:#ff9a8f;margin-top:8px}
