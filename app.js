@@ -20,7 +20,7 @@ function show(id){screens.forEach(s=>$(s).hidden=s!==id);
   if(id==='game'){const on=!!(G&&G.net);$('chatBtn').hidden=!on;$('emoteBtn').hidden=!on;$('emoteBar').hidden=true;$('gchat').hidden=!on;if(!on)closeChat();}}
 function showTab(t){curTab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   ['rooms','profile','team','league'].forEach(x=>$('tab-'+x).hidden=x!==t);
-  if(t==='rooms'){renderOnline();renderDrills();loadFriends();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
+  if(t==='rooms'){renderOnline();renderDrills();loadFriends();renderTutBox();}if(t==='profile')renderProfile();if(t==='team')renderTeam();if(t==='league')renderLeague();}
 function showMain(t){if(t)curTab=t;show('main');}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 $('meChip').onclick=()=>showTab('profile');
@@ -125,7 +125,7 @@ window.__uzk={G:()=>G,step:()=>step(),keys:()=>keys};
 const P_ACC=0.1,P_ACC_K=0.07,P_DAMP=0.96,B_DAMP=0.99,KICK=5;
 const DIFF=[{acc:0.82,react:14,noise:0.55,kick:0.25},{acc:0.94,react:7,noise:0.28,kick:0.55},{acc:1.0,react:3,noise:0.12,kick:0.85}];
 const BOT_NAMES=['Kaan','Mert','Efe','Arda','Deniz','Barış','Ozan','Emir','Can','Umut'];
-let G=null;if(location.hash==="#dbg"){window.__G=()=>G;window.__N=()=>NET;window.__wx=()=>bolt;window.__amb=()=>AMB;} // yerel test için
+let G=null;if(location.hash==="#dbg"){window.__G=()=>G;window.__N=()=>NET;window.__F=()=>({FW,FH});window.__wx=()=>bolt;window.__amb=()=>AMB;} // yerel test için
 
 
 // Haxball gibi: herkes kendi yarısında SPAWN çizgisinde, 0, +55, -55, +110 ... dizilir
@@ -180,6 +180,7 @@ const DRILLS={
 const MEDALS=['Bronz','Gümüş','Altın'],MEDAL_C=['#c98a55','#c9d1d9','#f2c230'];
 function drillMedal(kind,v){const D=DRILLS[kind];let m=-1;D.medals.forEach((t,i)=>{if(D.higher?v>=t:v<=t)m=i;});return m;}
 function startDrill(kind){
+  if(kind==='tut')return startTut();
   const D=DRILLS[kind];if(!D)return;
   const roster=[{pid:'me',team:0,human:true,local:true,avatar:prof.avatar,name:prof.name,nameColor:prof.nameColor,tag:myTag(),cel:prof.cel,trail:prof.trail,sr:bestTier()}];
   if(kind==='keeper')roster.push({pid:'gk',team:1,human:false,avatar:'1',name:'Kaleci',nameColor:'#ffffff'});
@@ -189,6 +190,43 @@ function startDrill(kind){
   if(kind==='slalom'){const gs=[];for(let i=0;i<6;i++){const x=-FW*0.62+i*(FW*1.24/5),y=(i%2?1:-1)*FH*0.42;gs.push({x,y,h:46});}G.drill.gates=gs;}
   drillNext(true);renderHud();
 }
+// ---------- Yeni oyuncu rehberi ----------
+const TOUCH=matchMedia('(pointer:coarse)').matches;
+const TUT=[
+  {t:TOUCH?'Ekranın sol yarısına dokunup sürükle: sarı noktaya yürü':'Yön tuşları ya da WASD ile sarı noktaya git',k:'go',x:-0.45,y:-0.5},
+  {t:'Güzel! Şimdi diğer noktaya git',k:'go',x:0.1,y:0.55},
+  {t:'Topa çarparak sürebilirsin. Topu sarı alana getir',k:'dribble',x:0.35,y:-0.35},
+  {t:TOUCH?'Topa yaklaş ve sağdaki ŞUT düğmesine bas: kaleye gol at':'Topa yaklaş, Boşluk ya da X ile şut çek: kaleye gol at',k:'goal'},
+  {t:TOUCH?'Sol üstteki 🎥 kamera düğmesine dokunup kamerayı değiştir':'1–7 tuşlarıyla kamera açısını değiştir (Haxball\'daki gibi)',k:'cam'},
+];
+function startTut(){
+  const roster=[{pid:'me',team:0,human:true,local:true,avatar:prof.avatar,name:prof.name,nameColor:prof.nameColor,tag:myTag(),cel:prof.cel,trail:prof.trail,sr:bestTier()}];
+  const uk=userKit();startMatch({roster,map:'classic',kits:[{...uk,name:prof.team,abbr:prof.abbr},{name:'Bot',abbr:'BOT',p:'#2a62d6',s:'#ffffff',pat:'solid'}],time:600,goals:0,skin:'classic',diff:0});
+  G.training=true;G.drill={kind:'tut',step:0,t:0,score:0,res:[]};const me=G.players[0];me.x=-FW*0.75;me.y=0;G.ball.x=-FW*0.2;G.ball.y=FH*0.2;G.kickoff=false;renderHud();
+}
+function tutNext(){const d=G.drill;d.step++;d.t=0;sKick(0.7);
+  if(d.step>=TUT.length){d.done=true;G.state='over';prof.tut=1;save();$('banner').classList.remove('on');
+    $('endScore').textContent='Hazırsın!';$('endLbl').textContent='Eğitim tamamlandı';$('endMsg').textContent='Gerçek maç için Hızlı eşleş\'e bas; seni hemen bir odaya atar. Antrenman görevleriyle de pratik yapabilirsin.';
+    $('endStats').innerHTML='';$('endGoals').hidden=true;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());$('againBtn').textContent='Hızlı eşleş';$('endMenu').textContent='Menü';$('endOv').hidden=false;renderTutBox();return;}
+  const st=TUT[d.step];if(st.k==='goal'){G.ball.x=FW*0.45;G.ball.y=0;G.ball.vx=G.ball.vy=0;}if(st.k==='cam')d.cam0=camMode();renderHud();}
+function tutTick(){const d=G.drill,st=TUT[d.step];if(!st||G.state!=='play')return;d.t++;const me=G.players[0],b=G.ball;
+  if(st.k==='go'&&Math.hypot(me.x-st.x*FW,me.y-st.y*FH)<26)tutNext();
+  else if(st.k==='dribble'&&Math.hypot(b.x-st.x*FW,b.y-st.y*FH)<40)tutNext();
+  else if(st.k==='cam'&&camMode()!==d.cam0)tutNext();
+  if(d.t%15===0)renderHud();}
+function tutGoal(team){const b=G.ball;b.vx=b.vy=0;
+  if(TUT[G.drill.step].k==='goal'&&team===0){sCrowd();goalBanner('GOL!',-1,-1);G.state='goal';G.stateT=60;G.drill.after=true;return;}
+  b.x=Math.sign(b.x)*(FW*0.5);b.y=0;}
+function tutHud(){const d=G.drill;return `<span class="tutstep">${Math.min(d.step+1,TUT.length)}/${TUT.length}</span> ${esc(TUT[d.step]?TUT[d.step].t:'')}`;}
+function drawTut(){const d=G.drill,st=TUT[d.step];if(!st)return;const t=performance.now()/300;
+  if(st.k==='go'||st.k==='dribble'){const x=st.x*FW,y=st.y*FH,r=(st.k==='go'?22:36)+Math.sin(t)*3;ctx.fillStyle='rgba(242,194,48,.22)';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f2c230';ctx.lineWidth=3;ctx.setLineDash([6,5]);ctx.stroke();ctx.setLineDash([]);}
+  if(st.k==='goal'){ctx.fillStyle=`rgba(242,194,48,${0.15+0.1*Math.sin(t)})`;ctx.fillRect(FW,-GH,GD,2*GH);}
+  if(st.k==='dribble'||st.k==='goal'){const b=G.ball;ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,b.r+6+Math.sin(t*1.5)*2,0,Math.PI*2);ctx.stroke();}
+}
+function renderTutBox(){const box=$('tutBox');if(!box)return;box.hidden=!!prof.tut||!!NET.room;if(box.hidden)return;box.innerHTML='';
+  const t=document.createElement('span');t.textContent='Uzkball\'a hoş geldin! Oynamayı 1 dakikada öğren: hareket, top sürme, şut ve kamera.';
+  const b=document.createElement('button');b.className='big';b.textContent='Eğitime başla';b.onclick=()=>startTut();
+  const x=document.createElement('button');x.className='chip';x.textContent='Biliyorum, geç';x.onclick=()=>{prof.tut=1;save();renderTutBox();};box.append(t,b,x);}
 function drillNext(first){
   const d=G.drill,b=G.ball,me=G.players[0];if(!first&&d.kind!=='slalom')d.att++;
   if(d.kind!=='slalom'&&d.att>=d.max){drillEnd();return;}
@@ -198,6 +236,7 @@ function drillNext(first){
   else{if(d.back){d.back=false;b.x=Math.sign(b.x||1)*(FW-80);b.y=0;return;}if(!first){drillEnd();return;}b.x=-FW*0.78;b.y=0;me.x=b.x-42;me.y=0;d.gate=0;}
 }
 function drillTick(){
+  if(G.drill.kind==='tut')return tutTick();
   const d=G.drill,b=G.ball;if(G.state!=='play')return;d.t++;
   if(d.kind==='slalom'){
     const g=d.gates[d.gate];
@@ -209,6 +248,7 @@ function drillTick(){
   if(d.t%15===0)renderHud();
 }
 function drillGoal(team){
+  if(G.drill.kind==='tut')return tutGoal(team);
   const d=G.drill;
   if(d.kind==='slalom'){
     if(team!==0||d.gate<d.gates.length){G.ball.vx=G.ball.vy=0;G.ball.x=Math.sign(G.ball.x)*(FW-30);goalBanner(d.gate<d.gates.length?`ÖNCE KAPILAR (${d.gate}/${d.gates.length})`:'YANLIŞ KALE',-1,-1);G.state='goal';G.stateT=50;d.back=true;return;}
@@ -228,10 +268,11 @@ function drillEnd(fail){
   box.appendChild(md);$('endGoals').hidden=true;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());
   $('againBtn').textContent='Tekrar dene';$('endMenu').textContent='Menü';$('endOv').hidden=false;renderDrills();
 }
-function drillHud(){const d=G.drill,D=DRILLS[d.kind];
+function drillHud(){const d=G.drill,D=DRILLS[d.kind];if(d.kind==='tut')return tutHud();
   if(d.kind==='slalom')return `<span class="kit" style="background:${G.kits[0].p}"></span>${D.name.toUpperCase()} · KAPI ${Math.min(d.gate,d.gates.length)}/${d.gates.length}<span class="clock">${(d.t/60).toFixed(1)}</span>`;
   return `<span class="kit" style="background:${G.kits[0].p}"></span>${D.name.toUpperCase()} · ${d.score} GOL · TOP ${Math.min(d.att+1,d.max)}/${d.max}<span class="clock">${Math.max(0,Math.ceil((d.limit-d.t)/60))}</span>`;}
 function drawDrill(){
+  if(G.drill.kind==='tut')return drawTut();
   const d=G.drill;
   if(d.kind==='slalom'){d.gates.forEach((g,i)=>{const done=i<d.gate,next=i===d.gate;
       ctx.strokeStyle=done?'rgba(127,224,170,.5)':next?'rgba(242,194,48,.9)':'rgba(255,255,255,.35)';ctx.lineWidth=next?4:2;ctx.setLineDash(next?[]:[6,6]);
@@ -359,7 +400,7 @@ function aiThink(p){
 
 // ---------- Simülasyon adımı ----------
 function step(){
-  if(G.state==='goal'){G.stateT--;if(G.stateT<=0){if(G.drill){$('banner').classList.remove('on');G.state='play';drillNext();return;}if(G.over){endMatch();return;}resetPositions();G.state='play';$('banner').classList.remove('on');}
+  if(G.state==='goal'){G.stateT--;if(G.stateT<=0){if(G.drill){$('banner').classList.remove('on');G.state='play';if(G.drill.kind==='tut'){if(G.drill.after){G.drill.after=false;tutNext();}return;}drillNext();return;}if(G.over){endMatch();return;}resetPositions();G.state='play';$('banner').classList.remove('on');}
     integrate(false);return;}
   if(G.tick%10===0){aiAssign(0);aiAssign(1);}
   G.tick=(G.tick||0)+1;
@@ -951,7 +992,7 @@ $('pauseBtn').onclick=togglePause;$('resumeBtn').onclick=()=>{if(G&&G.net&&G.net
 $('specBack').onclick=()=>{NET.watch=false;show('roomScr');renderRoom();};
 $('quitBtn').onclick=async()=>{if(G&&G.net){if(G.net.role==='host'&&inRankedMatch()){if(!confirmLeave())return;await penalizeLeave();}$('pauseOv').hidden=true;if(G&&G.net&&G.net.role==='host'){G.paused=false;hostBackToRoom();}else show('roomScr');return;}G=null;showMain('rooms');};
 $('endMenu').onclick=()=>{clearRanked('end');if(G&&G.net){if(G.net.role==='host')hostBackToRoom();G=null;leaveRoom(false);return;}G=null;showMain('rooms');};
-$('againBtn').onclick=()=>{if(G&&G.drill){startDrill(G.drill.kind);return;}if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
+$('againBtn').onclick=()=>{if(G&&G.drill&&G.drill.kind==='tut'){G=null;showMain('rooms');$('quickBtn').click();return;}if(G&&G.drill){startDrill(G.drill.kind);return;}if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
 $('playBtn').onclick=()=>startMatch({});
 $('rotateOk').onclick=()=>{$('rotate').style.display='none';};
 // ortam sesi: aç/kapa ve ses yüksekliği (yağmurlu sahalarda görünür)
@@ -1305,7 +1346,7 @@ function renderOnline(){
     b.onclick=()=>{NET.watch=r.ph==='game';enterRoom(r.code);};
     if(r.ph==='game'){const w=document.createElement('span');w.className='watch';w.textContent='👁 İzle';b.appendChild(w);}
     list.appendChild(b);});
-  renderChat('lobby',NET.lobby,$('lcLog'));renderFriends();renderRejoin();
+  renderChat('lobby',NET.lobby,$('lcLog'));renderFriends();renderRejoin();renderTutBox();
   const ol=$('onlineList');ol.innerHTML='';
   ps.sort((x,y)=>(y.sameTab?1:0)-(x.sameTab?1:0)).slice(0,60).forEach(p=>{const pr=p.presence;const b=document.createElement('button');b.type='button';b.className='oplayer';
     const av=document.createElement('span');av.className='av';av.textContent=cleanStr(pr.av,2)||'?';
