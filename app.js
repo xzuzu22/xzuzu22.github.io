@@ -509,7 +509,9 @@ function renderHud(){
   const k=G.kits;
   if(G.drill){$('hud').innerHTML=drillHud();return;}
   if(G.training){$('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>ANTRENMAN · GOL ${G.score[0]}<span class="clock">${G.score[1]?'KENDİ KALENE '+G.score[1]:'∞'}</span>`;return;}
-  $('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>${esc(k[0].abbr||'SEN')} ${G.score[0]} – ${G.score[1]} ${esc(k[1].abbr)}<span class="kit" style="background:${k[1].p}"></span><span class="clock">${G.golden?'ALTIN GOL':m+':'+String(s).padStart(2,'0')}</span>`;
+  const sn=G.net?specCount():0;
+  $('hud').innerHTML=`<span class="kit" style="background:${k[0].p}"></span>${esc(k[0].abbr||'SEN')} ${G.score[0]} – ${G.score[1]} ${esc(k[1].abbr)}<span class="kit" style="background:${k[1].p}"></span><span class="clock">${G.golden?'ALTIN GOL':m+':'+String(s).padStart(2,'0')}</span>${sn?`<span class="specn" title="İzleyici">👁 ${sn}</span>`:''}`;
+  $('specBadge').hidden=!(G.net&&G.myTeam<0);
 }
 
 // ---------- Çizim ----------
@@ -873,6 +875,7 @@ requestAnimationFrame(loop);
 // ---------- Oyun düğmeleri ----------
 function togglePause(){if(!G||G.state==='over')return;if(G.net&&G.net.role==='client'){$('resumeBtn').textContent='Oyuna dön';$('quitBtn').textContent='Oda ekranına git';$('pauseOv').hidden=!$('pauseOv').hidden;return;}G.paused=!G.paused;$('pauseOv').hidden=!G.paused;}
 $('pauseBtn').onclick=togglePause;$('resumeBtn').onclick=()=>{if(G&&G.net&&G.net.role==='client'){$('pauseOv').hidden=true;return;}togglePause();};
+$('specBack').onclick=()=>{NET.watch=false;show('roomScr');renderRoom();};
 $('quitBtn').onclick=()=>{if(G&&G.net){$('pauseOv').hidden=true;if(G.net.role==='host'){G.paused=false;hostBackToRoom();}else show('roomScr');return;}G=null;showMain('rooms');};
 $('endMenu').onclick=()=>{if(G&&G.net){if(G.net.role==='host')hostBackToRoom();G=null;leaveRoom(false);return;}G=null;showMain('rooms');};
 $('againBtn').onclick=()=>{if(G&&G.drill){startDrill(G.drill.kind);return;}if(G&&G.net){if(G.net.role==='host')hostBackToRoom();else{G=null;show('roomScr');}return;}startMatch(G?G.opt:{});};
@@ -1174,8 +1177,10 @@ function renderOnline(){
     const full=(r.n||0)>=(r.max||0);
     b.innerHTML=`<b></b><span class="cnt">${Number(r.n)||0}/${Number(r.max)||0}</span><span class="meta"><span class="tag">${esc(MAPS[r.map]?MAPS[r.map].name:'?')}</span>${r.ph==='game'?'<span class="tag live">Maçta</span>':'<span class="tag">Lobide</span>'}<span class="hn"></span></span>`;
     b.querySelector('b').textContent=cleanStr(r.name,28)||'Oda';b.querySelector('.hn').textContent='Kuran: '+cleanStr(r.hostNick,14);
-    if(full){b.disabled=true;b.style.opacity=.55;}
-    b.onclick=()=>enterRoom(r.code);list.appendChild(b);});
+    if(full&&r.ph!=='game'){b.disabled=true;b.style.opacity=.55;}
+    b.onclick=()=>{NET.watch=r.ph==='game';enterRoom(r.code);};
+    if(r.ph==='game'){const w=document.createElement('span');w.className='watch';w.textContent='👁 İzle';b.appendChild(w);}
+    list.appendChild(b);});
   renderChat('lobby',NET.lobby,$('lcLog'));
   const ol=$('onlineList');ol.innerHTML='';
   ps.sort((x,y)=>(y.sameTab?1:0)-(x.sameTab?1:0)).slice(0,60).forEach(p=>{const pr=p.presence;const b=document.createElement('button');b.type='button';b.className='oplayer';
@@ -1274,7 +1279,7 @@ async function enterRoom(code,autoTeam){
 }
 async function leaveRoom(silent){
   const r=NET.room;if(!r)return;
-  NET.room=null;NET.isHost=false;NET.cfg=null;NET.ro=null;NET.phase='lobby';NET.roKey=null;
+  NET.room=null;NET.isHost=false;NET.cfg=null;NET.watch=false;NET.ro=null;NET.phase='lobby';NET.roKey=null;
   if(G&&G.net){G=null;}
   rtcReset();
   try{await r.leave();}catch(e){}
@@ -1301,12 +1306,13 @@ function hostReconcile(){
   const ps=named(NET.room.peers());const ids=new Set(ps.map(p=>p.peer));const T=NET.teams;let ch=false;
   for(const k of Object.keys(T))if(!ids.has(k)){delete T[k];delete NET.wantSeen[k];delete NET.inputs[k];rtcDrop(k);ch=true;}
   for(const p of ps){
-    if(!(p.peer in T)){const n=Object.values(T).filter(v=>v!=='full'&&v!=='kicked').length;T[p.peer]=n>=NET.cfg.max?'full':'spec';ch=true;}
+    if(!(p.peer in T)){const n=Object.values(T).filter(v=>v!=='full'&&v!=='kicked').length;T[p.peer]=n>=NET.cfg.max+8?'full':'spec';ch=true;}
     if(Array.isArray(NET.cfg.bans)&&p.presence.u&&NET.cfg.bans.includes(p.presence.u)&&T[p.peer]!=='kicked'&&!p.sameTab){T[p.peer]='kicked';ch=true;}
     if(NET.cfg.league&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'){const tid=p.presence.tid;const want=tid&&tid===NET.cfg.home?'red':tid&&tid===NET.cfg.away?'blue':'spec';if(T[p.peer]!==want){T[p.peer]=want;ch=true;}}
     const w=p.presence.want;
     if(!NET.cfg.league&&(w==='red'||w==='blue'||w==='spec')&&NET.wantSeen[p.peer]!==w){NET.wantSeen[p.peer]=w;
-      if((NET.cfg.free||p.sameTab)&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'&&T[p.peer]!==w){T[p.peer]=w;ch=true;}}
+      const pc=Object.entries(T).filter(([k,v])=>k!==p.peer&&(v==='red'||v==='blue')).length+NET.bots.length;
+      if((NET.cfg.free||p.sameTab)&&NET.phase==='lobby'&&T[p.peer]!=='full'&&T[p.peer]!=='kicked'&&T[p.peer]!==w&&(w==='spec'||T[p.peer]==='red'||T[p.peer]==='blue'||pc<NET.cfg.max)){T[p.peer]=w;ch=true;}}
     if(!p.sameTab&&T[p.peer]!=='full'&&T[p.peer]!=='kicked')rtcHostEnsure(p.peer);
   }
   return ch;
@@ -1334,6 +1340,7 @@ setInterval(()=>{ // oda sahibi gitti mi?
 },1000);
 
 // ---------- Oda ekranı ----------
+function specCount(){try{if(!NET.room)return 0;const v=roomView();if(!v)return 0;return named(NET.room.peers()).filter(p=>(v.teams[p.peer]||'spec')==='spec').length;}catch(e){return 0;}}
 function roomView(){
   if(NET.isHost)return {cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,host:TAB,me:TAB};
   const h=hostPeerOf(NET.room);if(!h)return null;const pr=h.presence;
@@ -1378,7 +1385,7 @@ function renderRoom(){
   if(v.phase==='game'){
     const inGame=G&&G.net;txt.textContent=myT==='spec'?'Maç sürüyor. İzleyebilirsin, maç bitince takıma geçebilirsin.':'Maç sürüyor.';
     const b=document.createElement('button');b.className='big';b.textContent=myT==='spec'||!inGame?'Maçı izle':'Maça dön';b.disabled=!inGame;
-    b.onclick=()=>{if(G&&G.net){show('game');resize();}};line.append(txt,b);
+    b.onclick=()=>{NET.watch=true;if(G&&G.net){show('game');resize();renderHud();}};line.append(txt,b);
   }else{
     txt.textContent=myT==='spec'?'İzleyicisin. Bir takıma geç, sonra "Hazırım" de.':'Takımdasın. Hazır olunca işaretle, oda sahibi maçı başlatsın.';
     const r=document.createElement('button');r.className='chip';r.setAttribute('aria-pressed',String(!!NET.ready));r.textContent=NET.ready?'Hazırım ✓':'Hazırım';
@@ -1477,7 +1484,7 @@ function buildClientGame(pr){
     skin:SKINS[pr.cfg.skin]?pr.cfg.skin:'classic',mapKey:MAPS[pr.cfg.map]?pr.cfg.map:'classic',myTeam:mine?mine.team:-1,training:false,bubbles:{},ks:-1,gs:-1,snap:true,ended:false,size:Math.max(cnt[0],cnt[1],1),kickoff:true,rec:[],goals:[],pend:null,pip:null};
   NET.snap=null;NET.snapN=-1;NET.lastSnap=null;$('endOv').hidden=true;$('pauseOv').hidden=true;
   CELFX=[];preloadCels();loadGoalSnd();
-  if(mine){show('game');resize();sWhistle(0.45,1);}else renderRoom();
+  if(mine){show('game');resize();sWhistle(0.45,1);}else if(NET.watch){show('game');resize();renderHud();}else renderRoom();
 }
 function acceptSnap(g){if(!g||!Array.isArray(g.s)||typeof g.n!=='number')return;if(g.n<NET.snapN&&NET.snapN-g.n<5000)return;NET.snapN=g.n;NET.snap=g;}
 function clientFrame(){
