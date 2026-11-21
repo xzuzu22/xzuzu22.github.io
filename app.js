@@ -1075,7 +1075,8 @@ const DB={
     const {data,error}=await sb.rpc('claim_season_rewards');if(error)throw error;return data||[];},
   async myRating(){
     if(!LIVE){const d=MOCKDB.get();return (d.ratings||{})[uid]||{rating:1000,games:0};}
-    const {data,error}=await sb.from('player_ratings').select('rating,games').eq('user_id',uid).maybeSingle();if(error)throw error;return data||{rating:1000,games:0};},
+    const {data,error}=await sb.from('player_ratings').select('rating,games,season').eq('user_id',uid).maybeSingle();if(error)throw error;
+    const n=new Date(),cur=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;return data&&data.season===cur?data:{rating:1000,games:0};},
   async recordRating(team,opp,gf,ga){
     if(!LIVE){const d=MOCKDB.get();d.ratings=d.ratings||{};const r=d.ratings[uid]||{rating:1000,games:0};const k=r.games<10?40:24;const e=1/(1+Math.pow(10,(opp-team)/400));const s2=gf>ga?1:gf===ga?.5:0;
       const dd=Math.round(k*(s2-e)+(s2!==.5?Math.max(-3,Math.min(3,gf-ga)):0));r.rating=Math.max(100,r.rating+dd);r.games++;d.ratings[uid]=r;MOCKDB.put(d);return r.rating;}
@@ -1359,7 +1360,7 @@ async function renderRanking(box){
   Object.entries(TIERS).forEach(([k,t])=>{const e=document.createElement('div');e.className='rw';e.style.setProperty('--tc',t.c);
     e.innerHTML='<i></i><b></b><span></span>';e.querySelector('i').textContent=t.i;e.querySelector('b').textContent=`${t.min}+ puan`;
     e.querySelector('span').textContent=k==='altin'?'Altın sezon rozeti':k==='elmas'?'Elmas rozeti + maçta mavi parıltı halkası':'Usta tacı + maçta mor parıltı halkası';rw.appendChild(e);});
-  const note=document.createElement('p');note.className='note';note.textContent='Ay sonunda puanın hangi seviyedeyse o ödülü kalıcı olarak kazanırsın; ödüller bir sonraki girişinde hesabına eklenir.';rw.appendChild(note);
+  const note=document.createElement('p');note.className='note';note.textContent='Ay sonunda puanın hangi seviyedeyse o ödülü kalıcı olarak kazanırsın; ödüller bir sonraki girişinde hesabına eklenir. Her yeni sezonda herkes 1000 puandan ve 5 yerleşme maçıyla yeniden başlar.';rw.appendChild(note);
   const L=sec.querySelector('.rlist');const top=d.top||[];
   if(!top.length)L.innerHTML='<p class="note">Henüz sıralamaya giren yok. 5 maç oynayan herkes listeye girer.</p>';
   const row=(x)=>{const r=document.createElement('div');r.className='rrow'+(x.id===uid?' me':'')+(x.pos<=3?' p'+x.pos:'');
