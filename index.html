@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="Uzkball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=18f7277">
+<link rel="stylesheet" href="style.css?v=4c7532e">
 </head>
 <body>
 
@@ -24,7 +24,8 @@
   <div class="gate">
     <img class="logo" src="assets/logo.webp" alt="Uzkball" width="747" height="200">
     <form class="panel" id="gateForm">
-      <div class="field"><label class="lbl" for="gNick">Takma adını seç</label><input type="text" id="gNick" maxlength="14" autocomplete="nickname" placeholder="örn. Torriq"></div>
+      <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1 1 0"><label class="lbl" for="gNick">Takma adını seç</label><input type="text" id="gNick" maxlength="14" autocomplete="nickname" placeholder="örn. Torriq"></div><div class="field" style="flex:0 0 82px"><label class="lbl" for="gNum">Forma no</label><input type="number" id="gNum" min="1" max="99" inputmode="numeric" placeholder="10"></div></div>
+      <p class="note" style="margin:-4px 0 0">Forma numaranı şimdi ücretsiz seçiyorsun. Sonra değiştirmek için forma değiştirme kartı gerekir (1 tane hediye).</p>
       <button class="big" type="submit" id="gateGo">Oyuna gir</button>
       <button class="ghost" type="button" id="gateGoogle" style="justify-content:center">Google ile bağlan</button>
       <p class="note" id="gateMsg">Nick'le hemen girersin. Google ile bağlarsan profilin, takımın ve satın aldıkların her cihazda seninle gelir.</p>
@@ -128,8 +129,9 @@
           <div class="preview"><canvas id="prevCv" width="300" height="300" style="width:150px;height:150px"></canvas></div>
           <div class="row">
             <div class="field"><label class="lbl" for="inName">Takma ad</label><input type="text" id="inName" maxlength="14"></div>
-            <div class="field"><label class="lbl" for="inAvatar">Forma yazısı <span class="pro">Premium</span></label><input type="text" id="inAvatar" maxlength="2" placeholder="7, 17, K, AR"></div>
+            
           </div>
+          <div class="jerseybox" id="jerseyBox"></div>
           <div class="lbl">İsim rengi <span class="pro">Premium</span></div>
           <div class="row" id="nameColors"></div>
           <div class="lbl">Gol sevinci <span class="pro">Premium</span></div>
@@ -160,8 +162,8 @@
         <button class="ghost" id="adReward" hidden style="justify-content:center">Reklam izle, premium forma desenini 1 gün dene</button>
         <div class="store">
           <div class="item"><b>Renkli isim</b>Sahada ve sohbette renkli takma ad. Kalıcı.<span class="price">14,90 TL</span></div>
-          <div class="item"><b>Forma yazısı</b>Yuvarlağın üstüne numara ya da 2 harf. Kalıcı.<span class="price">19,90 TL</span></div>
-          <div class="item"><b>Başlangıç paketi</b>Renkli isim + forma yazısı birlikte.<span class="price">24,90 TL</span></div>
+          <div class="item" id="storeJersey"><b>Forma değiştirme kartı</b>Forma numaranı bir kez değiştirir. Her yeni hesaba 1 kart hediye.<span class="price">9,90 TL</span><button class="chip go" id="buyJersey" type="button">Kart al</button><small class="note" id="jerseyOwned"></small></div>
+          <div class="item"><b>Başlangıç paketi</b>Renkli isim + 2 forma değiştirme kartı birlikte.<span class="price">24,90 TL</span></div>
           <div class="item"><img class="itimg" src="assets/skin-pack.webp" alt="Gece, kar ve plaj sahaları"><b>Saha görünümleri</b>Gece Işıkları ve Plaj. Oda sahibi seçer, odadaki herkes o sahada oynar.<span class="price">19,90 TL her biri</span></div>
           <div class="item"><img class="itimg" src="assets/skin-rain.webp" alt="Yağmurlu gece sahası"><b>Efektli sahalar</b>Kar Fırtınası: yağan kar, karlı kenarlar. Sağanak: bardaktan boşanan yağmur, arada şimşek ve gök gürültüsü. Çisenti: aynı ıslak gece, ince ince çiseleyen yağmur. Kiraz Bahçesi: rüzgârla savrulan kiraz yaprakları.<span class="price">34,90 TL her biri · 6 saha birlikte 99,90 TL</span></div>
           <div class="item"><b>Gol sevinçleri</b>Konfeti, havai fişek, ateş izi ve altın pankart. Gol atınca sahada oynar, odadaki herkes görür. Her biri kalıcı.<span class="price">9,90 TL her biri</span></div>
@@ -296,7 +298,7 @@
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=18f7277"></script>
+<script type="module" src="app.js?v=4c7532e"></script>
 <div class="invtoast" id="invToast" hidden></div>
 </body>
 </html>

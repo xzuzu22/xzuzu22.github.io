@@ -1002,10 +1002,16 @@ const rcode=()=>Math.random().toString(36).slice(2,8);
 const DB={
   async getProfile(){
     if(!LIVE){const d=MOCKDB.get();return d.profiles[uid]||null;}
-    const {data,error}=await sb.from('profiles').select('nick,avatar,name_color').eq('id',uid).maybeSingle();if(error)throw error;return data;},
+    const {data,error}=await sb.from('profiles').select('nick,avatar,name_color,jersey_cards').eq('id',uid).maybeSingle();if(error)throw error;return data;},
+  async useJerseyCard(n){
+    if(!LIVE){const d=MOCKDB.get();const p=d.profiles[uid];const c=p.jersey_cards??1;if(c<1)throw new Error('no jersey cards');p.avatar=n;p.jersey_cards=c-1;MOCKDB.put(d);return c-1;}
+    const {data,error}=await sb.rpc('use_jersey_card',{p_num:n});if(error)throw error;return data;},
+  async buyJerseyCard(){
+    if(!LIVE){const d=MOCKDB.get();const p=d.profiles[uid];const c=p.jersey_cards??1;if(c>=5)throw new Error('too many cards');p.jersey_cards=c+1;MOCKDB.put(d);return c+1;}
+    const {data,error}=await sb.rpc('buy_jersey_card');if(error)throw error;return data;},
   async saveProfile(){
     const row={nick:cleanStr(prof.name,14)||'Oyuncu',avatar:cleanStr(prof.avatar,2)||'10',name_color:cleanCol(prof.nameColor)};
-    if(!LIVE){const d=MOCKDB.get();d.profiles[uid]={...row};MOCKDB.put(d);return;}
+    if(!LIVE){const d=MOCKDB.get();const o=d.profiles[uid];d.profiles[uid]=o?{...o,...row,avatar:o.avatar,jersey_cards:o.jersey_cards??1}:{...row,jersey_cards:1};MOCKDB.put(d);return;}
     const {error}=await sb.from('profiles').upsert({id:uid,...row,updated_at:new Date().toISOString()});if(error)throw error;},
   async myTeam(){
     if(!LIVE){const d=MOCKDB.get();const m=d.members.find(m=>m.user_id===uid);return m?{role:m.role,team:d.teams[m.team_id]}:null;}
@@ -1747,7 +1753,7 @@ addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('statOv').hidden)$('statO
 async function renderMyStats(){const box=$('myStats');if(!box)return;box.innerHTML='<p class="note">Yükleniyor…</p>';
   try{statsView(box,await DB.playerSummary(uid));}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
 function renderProfile(){renderMyStats();renderLooks();
-  $('inName').value=prof.name;$('inAvatar').value=prof.avatar;
+  $('inName').value=prof.name;renderJersey();
   const box=$('nameColors');box.innerHTML='';
   NAME_COLORS.forEach(col=>{const b=document.createElement('button');b.className='sw';b.style.background=col;b.setAttribute('aria-label',col);b.setAttribute('aria-pressed',String(prof.nameColor===col));
     b.onclick=()=>{prof.nameColor=col;save();renderProfile();queueSave();};box.appendChild(b);});
@@ -1761,7 +1767,24 @@ function drawPreview(){
   drawDisc(x,150,128,80,k,prof.avatar,{name:prof.name,nameColor:prof.nameColor});
 }
 $('inName').addEventListener('input',e=>{const v=cleanStr(e.target.value,14).trim();if(hasBad(v)){$('saveState').textContent='Bu ad uygun değil.';return;}prof.name=v||'Oyuncu';save();drawPreview();queueSave();});
-$('inAvatar').addEventListener('input',e=>{const v=e.target.value.toLocaleUpperCase('tr-TR');e.target.value=v;prof.avatar=cleanStr(v,2).trim()||'10';save();drawPreview();queueSave();});
+let JCARDS=1;
+function renderJersey(){
+  const box=$('jerseyBox');if(!box)return;box.innerHTML='';
+  const cur=document.createElement('div');cur.className='jcur';cur.innerHTML='<span class="jnum"></span><div><b>Forma numaran</b><small></small></div>';
+  cur.querySelector('.jnum').textContent=prof.avatar;cur.querySelector('small').textContent=JCARDS>0?`${JCARDS} forma değiştirme kartın var`:'Forma değiştirme kartın yok';
+  const btn=document.createElement('button');btn.className='chip'+(JCARDS>0?' go':'');btn.type='button';btn.textContent=JCARDS>0?'Kartı kullan, numaramı değiştir':'Mağazadan kart al';
+  btn.onclick=()=>{if(JCARDS<1){document.getElementById('storeJersey')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
+    const f=document.createElement('form');f.className='jform';f.innerHTML='<input type="number" min="1" max="99" inputmode="numeric" placeholder="1–99" required><button class="chip go" type="submit">Onayla (1 kart)</button><button class="chip" type="button">Vazgeç</button><p class="note">Kart bir kez kullanılır; sonraki değişiklik için mağazadan yeni kart alman gerekir.</p>';
+    const inp=f.querySelector('input');f.querySelector('button[type=button]').onclick=renderJersey;
+    f.onsubmit=async e=>{e.preventDefault();const v=String(inp.value).trim();if(!/^[1-9][0-9]?$/.test(v)){f.querySelector('.note').textContent='1 ile 99 arasında bir numara yaz.';return;}
+      if(v===String(prof.avatar)){f.querySelector('.note').textContent='Zaten bu numarayı giyiyorsun.';return;}
+      try{JCARDS=await DB.useJerseyCard(v);prof.avatar=v;save();renderJersey();drawPreview();renderMe();pushLobby();if(NET.room)pushRoom();$('saveState').textContent='Forma numaran '+v+' oldu.';}catch(err){f.querySelector('.note').textContent=/no jersey cards/.test(err.message)?'Kartın kalmamış.':errText(err);}};
+    box.appendChild(f);btn.remove();setTimeout(()=>inp.focus());};
+  box.append(cur,btn);
+  const sb2=$('buyJersey');if(sb2){sb2.disabled=JCARDS>=5;sb2.textContent=JCARDS>=5?'En fazla 5 kart birikir':'Kart al';}
+  const own=$('jerseyOwned');if(own)own.textContent=`Elindeki kart: ${JCARDS}`;
+}
+$('buyJersey').onclick=async()=>{const b=$('buyJersey');b.disabled=true;try{JCARDS=await DB.buyJerseyCard();renderJersey();$('jerseyOwned').textContent=`Kart eklendi. Elindeki kart: ${JCARDS}`;}catch(e){$('jerseyOwned').textContent=/too many/.test(e.message)?'En fazla 5 kart biriktirebilirsin.':errText(e);}finally{b.disabled=JCARDS>=5;}};
 $('googleLink').onclick=googleSignIn;$('gateGoogle').onclick=googleSignIn;
 $('changeNick').onclick=async()=>{if(LIVE){await sb.auth.signOut();}try{localStorage.removeItem('uzk-profile'+SLOT);}catch(e){}location.reload();};
 
@@ -1945,6 +1968,8 @@ async function renderLeague(){
 $('gateForm').addEventListener('submit',async e=>{e.preventDefault();
   const n=cleanStr($('gNick').value,14).trim();if(n.length<2){$('gateMsg').textContent='Takma ad en az 2 karakter olmalı.';return;}
   if(hasBad(n)){$('gateMsg').textContent='Bu takma ad uygun değil, başka bir ad seç.';return;}
+  const jn=String($('gNum').value||'').trim();if(!/^[1-9][0-9]?$/.test(jn)){$('gateMsg').textContent='Forma numaranı seç (1–99).';return;}
+  prof.avatar=jn;
   prof.name=n;save();DB.saveProfile().catch(()=>{});enterMain();});
 function enterMain(){
   DB.restrictions().then(r=>{Object.assign(MOD,r||{});
@@ -1954,10 +1979,10 @@ function enterMain(){
   DB.myRating().then(r=>{MYR={r:Number(r.rating)||1000,g:Number(r.games)||0};renderMe();pushLobby();}).catch(()=>{});
   renderMe();showMain('rooms');netConnect();DB.myTeam().then(m=>{myTeamCache=m;renderMe();}).catch(()=>{});}
 (async()=>{
-  show('gate');$('gNick').value=prof.name||'';$('gateGo').disabled=true;$('gateMsg').textContent='Bağlanıyor…';
+  show('gate');$('gNick').value=prof.name||'';$('gNum').value=/^[1-9][0-9]?$/.test(prof.avatar||'')&&prof.name?prof.avatar:'';$('gateGo').disabled=true;$('gateMsg').textContent='Bağlanıyor…';
   try{await backendInit();
     const p=await DB.getProfile().catch(()=>null);
-    if(p){prof.name=p.nick||prof.name;prof.avatar=p.avatar||prof.avatar;prof.nameColor=p.name_color||prof.nameColor;save();}
+    if(p){prof.name=p.nick||prof.name;prof.avatar=p.avatar||prof.avatar;prof.nameColor=p.name_color||prof.nameColor;JCARDS=Number(p.jersey_cards??1);save();}
     $('gateGo').disabled=false;$('gateMsg').textContent='Nick\'le hemen girersin. Google ile bağlarsan profilin, takımın ve satın aldıkların her cihazda seninle gelir.';
     if(prof.name&&p){$('gNick').value=prof.name;enterMain();}
   }catch(e){console.error(e);$('gateGo').disabled=false;$('gateMsg').textContent='Sunucuya bağlanılamadı ('+errText(e)+'). Yine de girip botlara karşı oynayabilirsin.';}

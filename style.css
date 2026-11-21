@@ -367,3 +367,12 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .emotebar button:hover{background:rgba(255,255,255,.1)}
 .bpick{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .bpick .row .chip[aria-pressed="true"]{background:var(--flood);color:#111;border-color:var(--flood)}
+/* forma numarası */
+.jerseybox{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.jcur{display:flex;align-items:center;gap:12px}.jcur div{display:flex;flex-direction:column}.jcur small{color:var(--muted);font-size:12px}
+.jnum{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-size:22px;background:var(--flood);color:#111;border:3px solid #000}
+.jform{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.jform input{flex:0 0 100px}.jform .note{width:100%;margin:0}
+input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:10px 12px;font:inherit;font-size:16px;width:100%;min-width:0}
+.store .item .chip{margin-top:auto;align-self:flex-start}
+#gateForm .lbl{white-space:nowrap}
+#gNum{text-align:center}
