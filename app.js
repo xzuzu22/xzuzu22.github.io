@@ -173,7 +173,7 @@ function startMatch(opt={}){
     net:opt.net||null,skin:opt.skin||prof.skin,mapKey:opt.map||'classic',myTeam:opt.myTeam??0,goalLimit:opt.goals||0,kseq:0,gseq:0,lastGoal:-1,gi:-1,ai:-1,t1:null,t2:null,bubbles:{},tick:0,rec:[],goals:[],pend:null,pip:null};
   CELFX=[];preloadCels();loadGoalSnd();
   resetPositions();
-  show('game');$('endOv').hidden=true;$('pauseOv').hidden=true;
+  show('game');$('endOv').hidden=true;$('pauseOv').hidden=true;{const ex=$('endExtra');if(ex){ex.innerHTML='';ex.hidden=true;}}
   $('againBtn').textContent=G.net?'Odaya dön':'Rövanş';$('endMenu').textContent=G.net?'Odadan çık':'Menü';
   $('resumeBtn').textContent='Devam';$('quitBtn').textContent=G.net?'Maçı bitir, odaya dön':'Maçı bırak';
   resize();renderHud();if(!opt.silent)sWhistle(0.45,1);
@@ -276,6 +276,8 @@ function drillEnd(fail){
   D.medals.forEach((t,i)=>{const e=document.createElement('span');e.className='medal'+(m>=i?' on':'');e.style.setProperty('--mc',MEDAL_C[i]);e.textContent=MEDALS[i]+' · '+(d.kind==='slalom'?'≤'+t+' sn':t+'+');md.appendChild(e);});
   box.appendChild(md);$('endGoals').hidden=true;document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());
   $('againBtn').textContent='Tekrar dene';$('endMenu').textContent='Menü';$('endOv').hidden=false;renderDrills();
+  if(!fail&&['shoot','slalom','keeper'].includes(d.kind))DB.submitDrill(d.kind,v).then(b=>{if(!b||!b.me||!G||!G.drill)return;const e=document.createElement('div');e.className='rdelta up';
+    e.textContent=`🏆 Haftalık tabloda ${b.me.pos}. sıradasın (${b.count} kişi)`+(b.me.pos===1?' · şu an haftanın birincisisin!':'');$('endStats').before(e);renderDrillBoard(d.kind);}).catch(()=>{});
 }
 function drillHud(){const d=G.drill,D=DRILLS[d.kind];if(d.kind==='tut')return tutHud();
   if(d.kind==='slalom')return `<span class="kit" style="background:${G.kits[0].p}"></span>${D.name.toUpperCase()} · KAPI ${Math.min(d.gate,d.gates.length)}/${d.gates.length}<span class="clock">${(d.t/60).toFixed(1)}</span>`;
@@ -295,7 +297,7 @@ function drawDrill(){
   const n=d.max,w=14;for(let i=0;i<n;i++){const x=-((n-1)*w)/2+i*w,y=-FH-18;ctx.fillStyle=i<d.res.length?(d.res[i]?'#2fbf71':'#e0483e'):i===d.res.length?'#f2c230':'rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();}
   if(d.t<200&&d.kind!=='slalom'){const a=Math.max(0,1-d.t/200);ctx.fillStyle=`rgba(255,255,255,${0.6*a})`;ctx.font='700 14px Inter,system-ui,sans-serif';ctx.textAlign='center';ctx.fillText('Şut: Boşluk / X',G.ball.x,G.ball.y-34);}
 }
-function renderDrills(){const box=$('drillList');if(!box)return;box.innerHTML='';const st=prof.drills||{};
+function renderDrills(){const box=$('drillList');if(!box)return;box.innerHTML='';const st=prof.drills||{};setTimeout(()=>renderDrillBoard(),0);
   for(const [k,D] of Object.entries(DRILLS)){const b=document.createElement('button');b.className='drill';const r=st[k];
     const m=r?r.medal:-1;b.style.setProperty('--mc',m>=0?MEDAL_C[m]:'rgba(255,255,255,.18)');
     b.innerHTML='<i></i><b></b><span></span><em></em>';b.querySelector('i').textContent=m>=0?'★':'☆';b.querySelector('b').textContent=D.name;b.querySelector('span').textContent=D.desc;
@@ -543,11 +545,11 @@ async function recordMyMatch(){
     if(st.mismatch){el.className='rdelta dn';el.textContent='Bildirdiğin skor diğer oyuncularınkiyle uyuşmadı; bu maç sana sayılmadı.';}
     else if(st.applied&&typeof st.rating==='number'){const d=st.delta|0;MYR.r=st.rating;MYR.g++;el.className='rdelta '+(d>=0?'up':'dn');
       el.append(document.createTextNode(`Beceri puanı ${d>=0?'+':''}${d} → ${st.rating} `),rankEl(st.rating,MYR.g));
-      if(MYR.g<5)el.append(document.createTextNode(` · yerleşmeye ${5-MYR.g} maç`));else if(wasPl)el.append(document.createTextNode(' · lige yerleştin!'));pushLobby();if(NET.room)pushRoom();}
+      if(MYR.g<5)el.append(document.createTextNode(` · yerleşmeye ${5-MYR.g} maç`));else if(wasPl)el.append(document.createTextNode(' · lige yerleştin!'));pushLobby();if(NET.room)pushRoom();afterApplied(mid);}
     else{el.className='rdelta';el.textContent='Skor diğer oyuncuların onayını bekliyor…';}
     $('endStats').before(el);};
   let st=null;
-  try{st=await DB.reportResult(mid,me.team,G.score[0],G.score[1],me.g||0,me.a||0,humans,G.mapKey||'classic');show(st);}catch(e){console.warn('sonuç bildirilemedi',e);return;}
+  try{st=await DB.reportResult(mid,me.team,G.score[0],G.score[1],me.g||0,me.a||0,humans,G.mapKey||'classic');G.reported=true;renderMvp();show(st);}catch(e){console.warn('sonuç bildirilemedi',e);return;}
   for(let k=0;k<6&&st&&!st.applied&&!st.mismatch;k++){await new Promise(r=>setTimeout(r,2500));try{st=await DB.resultStatus(mid);if(st&&(st.applied||st.mismatch))show(st);}catch(e){}}
 }
 function endMatch(){
@@ -934,7 +936,10 @@ function repSave(){
   const types=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'];const type=types.find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
   try{const rec=new MediaRecorder(cv2.captureStream(30),type?{mimeType:type,videoBitsPerSecond:4e6}:undefined);const parts=[];
     rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data);};
-    rec.onstop=()=>{const blob=new Blob(parts,{type:rec.mimeType||'video/webm'});const ext=/mp4/.test(blob.type)?'mp4':'webm';const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`uzkball-gol-${RP.i+1}.${ext}`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);$('repMsg').textContent='Video hazır.';};
+    rec.onstop=async()=>{const blob=new Blob(parts,{type:rec.mimeType||'video/webm'});const ext=/mp4/.test(blob.type)?'mp4':'webm';
+      const file=new File([blob],`uzkball-gol-${RP.i+1}.${ext}`,{type:blob.type});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Uzkball golü',text:'Şu gole bak! ⚽ uzkball'});$('repMsg').textContent='Paylaşıldı.';return;}catch(e){if(e&&e.name==='AbortError'){$('repMsg').textContent='';return;}}}
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`uzkball-gol-${RP.i+1}.${ext}`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);$('repMsg').textContent='Video hazır.';};
     RP.t=0;RP.play=true;RP.speed=1;repLabel();rec.start();RP.rec=rec;$('repMsg').textContent='Kaydediliyor… klip bitince iner.';}catch(e){$('repMsg').textContent='Video kaydedilemedi.';}
 }
 $('repClose').onclick=()=>{if(RP.rec){try{RP.rec.stop();}catch(e){}RP.rec=null;}$('repOv').hidden=true;$('repMsg').textContent='';};
@@ -943,7 +948,7 @@ $('repNext').onclick=()=>{RP.i=(RP.i+1)%RP.list.length;RP.t=0;repLabel();};
 $('repPlay').onclick=()=>{RP.play=!RP.play;repLabel();};
 $('repSpeed').onclick=()=>{RP.speed=RP.speed===1?0.5:1;repLabel();};
 $('repZoom').onclick=()=>{RP.zoom=!RP.zoom;$('repZoom').setAttribute('aria-pressed',String(!!RP.zoom));};
-$('repSave').onclick=repSave;
+$('repSave').onclick=repSave;try{if(navigator.canShare&&navigator.canShare({files:[new File([''],'a.mp4',{type:'video/mp4'})]}))$('repSave').textContent='Videoyu paylaş';}catch(e){}
 
 function draw(){
   ctx.strokeStyle=drawField();ctx.lineWidth=3;
@@ -1079,11 +1084,11 @@ const DB={
     const {error}=await sb.from('profiles').upsert({id:uid,...row,updated_at:new Date().toISOString()});if(error)throw error;},
   async myTeam(){
     if(!LIVE){const d=MOCKDB.get();const m=d.members.find(m=>m.user_id===uid);return m?{role:m.role,team:d.teams[m.team_id]}:null;}
-    const {data,error}=await sb.from('team_members').select('role,teams(id,name,abbr,kit,tier,points,played,won,drawn,lost,gf,ga,owner)').eq('user_id',uid).maybeSingle();
+    const {data,error}=await sb.from('team_members').select('role,teams(id,name,abbr,kit,tier,points,played,won,drawn,lost,gf,ga,owner,xp)').eq('user_id',uid).maybeSingle();
     if(error)throw error;return data&&data.teams?{role:data.role,team:data.teams}:null;},
   async teams(){
     if(!LIVE){return Object.values(MOCKDB.get().teams);}
-    const {data,error}=await sb.from('teams').select('id,name,abbr,kit,tier,points,played,won,drawn,lost,gf,ga').order('tier').order('points',{ascending:false}).limit(600);if(error)throw error;return data;},
+    const {data,error}=await sb.from('teams').select('id,name,abbr,kit,tier,points,played,won,drawn,lost,gf,ga,xp').order('tier').order('points',{ascending:false}).limit(600);if(error)throw error;return data;},
   async leagueTick(){
     if(!LIVE)return null;
     const {data,error}=await sb.rpc('league_tick');if(error)throw error;return data;},
@@ -1157,6 +1162,17 @@ const DB={
   async savePush(sub,prefs){const j=sub.toJSON();if(!LIVE){localStorage.setItem('uzk-pushmock',JSON.stringify(prefs));return;}const {error}=await sb.rpc('save_push',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_prefs:prefs});if(error)throw error;},
   async deletePush(ep){if(!LIVE)return;await sb.rpc('delete_push',{p_endpoint:ep});},
   async pushInvite(to,code,room){if(!LIVE)return;const {error}=await sb.rpc('push_invite',{p_to:to,p_code:code,p_room:room||''});if(!error)sb.functions.invoke('push-send',{body:{}}).catch(()=>{});},
+  async playerExtra(u){if(!LIVE){const d=MOCKDB.get();return d.extra||{streak:0,today:false,freeze:true,mvp:0,promo:null,promo_evt:null,team_xp:null};}const {data,error}=await sb.rpc('player_extra',{p_user:u});if(error)throw error;return data||{};},
+  async myRivals(){if(!LIVE)return MOCKDB.get().rivals||[];const {data,error}=await sb.rpc('my_rivals',{p_limit:8});if(error)throw error;return data||[];},
+  async voteMvp(mid,t){if(!LIVE){const d=MOCKDB.get();d.mvp=d.mvp||{};d.mvp[mid]=d.mvp[mid]||{};d.mvp[mid][uid]=t;MOCKDB.put(d);const c={};Object.values(d.mvp[mid]).forEach(x=>c[x]=(c[x]||0)+1);return c;}
+    const {data,error}=await sb.rpc('vote_mvp',{p_mid:mid,p_target:t});if(error)throw error;return data||{};},
+  async mvpStatus(mid){if(!LIVE){const d=MOCKDB.get();const m=(d.mvp||{})[mid]||{};const c={};Object.values(m).forEach(x=>c[x]=(c[x]||0)+1);return {votes:c,mine:m[uid]||null};}
+    const {data,error}=await sb.rpc('mvp_status',{p_mid:mid});if(error)throw error;return data||{votes:{}};},
+  async submitDrill(k,v){if(!LIVE){const d=MOCKDB.get();d.dboard=d.dboard||{};const b=d.dboard[k]=d.dboard[k]||{};const lo=k==='slalom';if(b[uid]==null||(lo?v<b[uid].score:v>b[uid].score))b[uid]={nick:prof.name,score:v};MOCKDB.put(d);return this.drillBoard(k);}
+    const {data,error}=await sb.rpc('submit_drill',{p_kind:k,p_score:v});if(error)throw error;return data;},
+  async drillBoard(k){if(!LIVE){const d=MOCKDB.get();const b=(d.dboard||{})[k]||{};const lo=k==='slalom';const arr=Object.entries(b).map(([u,v])=>({...v,u})).sort((a,c)=>lo?a.score-c.score:c.score-a.score);
+      const mi=arr.findIndex(x=>x.u===uid);return {count:arr.length,top:arr.slice(0,10).map((x,i)=>({nick:x.nick,score:x.score,pos:i+1,me:x.u===uid})),me:mi>=0?{score:arr[mi].score,pos:mi+1}:null,last:(d.dlast||{})[k]||null,titles:0};}
+    const {data,error}=await sb.rpc('drill_board',{p_kind:k});if(error)throw error;return data;},
   async pingActive(){if(!LIVE)return;await sb.rpc('ping_active');},
   async questStatus(){
     if(!LIVE){const d=MOCKDB.get();const n=new Date(),day=n.toISOString().slice(0,10);const ms=(d.matches||[]).filter(m=>m.user_id===uid);const agg=a=>({played:a.length,goals:a.reduce((s,m)=>s+m.goals,0),assists:a.reduce((s,m)=>s+m.assists,0),won:a.filter(m=>m.result==='W').length});
@@ -1642,6 +1658,7 @@ async function enterRoom(code,autoTeam){
   rtcReset();
   room.on('sig',rtcOnSignal);
   room.on('g',d=>{if(!NET.isHost&&d&&d.to===undefined)acceptSnap(d);});
+  room.on('rv',d=>onRematch(d));
   room.on('afkw',d=>{if(d&&d.to===TAB&&G&&G.net)afkToast('Hareket etmiyorsun! 10 saniye içinde hareket etmezsen izleyiciye alınacaksın ve ceza alacaksın.',8000);});
   room.on('in',d=>{if(NET.isHost&&d&&typeof d.from==='string'&&Array.isArray(d.q))NET.inputs[d.from]=d.q;});
   room.onPeers(()=>schedule(onRoomPeers));
@@ -1829,6 +1846,122 @@ async function openAdmin(){
 $('adminClose').onclick=()=>{$('adminOv').hidden=true;if(location.hash==='#admin')history.replaceState(null,'',location.pathname+location.search);};
 function checkAdminRoute(){if(location.hash==='#admin'&&!$('main').hidden)openAdmin();}
 addEventListener('hashchange',checkAdminRoute);
+
+// ---------- Rekabet: seri, terfi, ezeli rakip, maçın oyuncusu, rövanş, haftalık tablo, oyuncu kartı ----------
+var EXTRA={},RIVALS=null;
+function loadExtra(){return DB.playerExtra(uid).then(x=>{EXTRA=x||{};renderMe();return EXTRA;}).catch(()=>EXTRA);}
+function loadRivals(){return DB.myRivals().then(r=>{RIVALS=Array.isArray(r)?r:[];return RIVALS;}).catch(()=>RIVALS||[]);}
+const teamLvl=xp=>{xp=Math.max(0,Number(xp)||0);const l=Math.floor((1+Math.sqrt(1+xp*4/25))/2);return {l,a:25*l*(l-1),b:25*(l+1)*l,xp};};
+const rankName=b=>{const k=RANKS.find(x=>x[0]===Number(b));return k?k[1]:'üst rütbe';};
+const rankCol=b=>{const k=RANKS.find(x=>x[0]===Number(b));return k?k[2]:'#f2c230';};
+function promoEl(pr){const w=document.createElement('div');w.className='promo';w.style.setProperty('--rc',rankCol(pr.b));
+  const t=document.createElement('b');t.textContent=`⬆️ ${rankName(pr.b)} terfi serisi`;const d=document.createElement('span');d.className='pdots';
+  for(let i=0;i<3;i++){const x=document.createElement('i');const k=i<pr.w?'w':i<pr.w+pr.l?'l':'';x.className=k;d.appendChild(x);}
+  const n=document.createElement('small');n.textContent=`3 maçtan 2'sini kazan, ${rankName(pr.b)} rütbesine çık (${pr.w} galibiyet, ${pr.l} mağlubiyet)`;w.append(t,d,n);return w;}
+function rivalLine(r){const w=Number(r.w)||0,l=Number(r.l)||0,d=Number(r.d)||0;return `${w}G ${d}B ${l}M`+(w>l?' · öndesin':w<l?' · gerideysin':' · berabersiniz');}
+async function renderCompete(box){
+  const sec=document.createElement('div');sec.className='compete';box.appendChild(sec);
+  const [x,rv]=await Promise.all([loadExtra(),loadRivals()]);
+  const tiles=document.createElement('div');tiles.className='ctiles';
+  const tile=(ic,val,lbl,sub,cls='')=>{const t=document.createElement('div');t.className='ctile '+cls;t.innerHTML='<i></i><b></b><span></span><small></small>';t.querySelector('i').textContent=ic;t.querySelector('b').textContent=val;t.querySelector('span').textContent=lbl;t.querySelector('small').textContent=sub;tiles.appendChild(t);};
+  const st=Number(x.streak)||0;
+  tile('🔥',st+' gün','Günlük seri',st?(x.today?'Bugün oynadın ✓':'Bugün bir maç oyna, seri sürsün'):'Bugün bir maç oyna, seri başlasın',st&&!x.today?'warn':'');
+  tile('❄️',x.freeze?'1':'0','Dondurma hakkı',x.freeze?'Bu hafta 1 gün kaçırsan da seri bozulmaz':'Bu haftaki hakkını kullandın');
+  tile('⭐',String(Number(x.mvp)||0),'Maçın oyuncusu','Maç sonunda oyuncuların oyuyla');
+  sec.appendChild(tiles);
+  if(x.promo&&x.promo.b)sec.appendChild(promoEl(x.promo));
+  const h=document.createElement('div');h.className='lbl';h.textContent='⚔️ Ezeli rakiplerin';sec.appendChild(h);
+  if(!rv.length){const p=document.createElement('p');p.className='note';p.textContent='Henüz yok. Başka oyuncularla maç yaptıkça en çok karşılaştığın rakipler ve aranızdaki skor burada görünür.';sec.appendChild(p);}
+  rv.slice(0,6).forEach((r,i)=>{const row=document.createElement('div');row.className='rivrow'+(Number(r.w)>Number(r.l)?' up':Number(r.w)<Number(r.l)?' dn':'');
+    const n=document.createElement('b');n.textContent=(i===0&&Number(r.games)>=3?'😤 ':'')+cleanBad(cleanStr(r.nick||'?',14));
+    const c=document.createElement('span');c.textContent=`${r.games} maç · ${rivalLine(r)}`;row.append(n,c);sec.appendChild(row);});
+  const cb=document.createElement('button');cb.className='chip go';cb.type='button';cb.textContent='🪪 Oyuncu kartımı oluştur';cb.onclick=openCard;sec.appendChild(cb);
+}
+// maç sonu: terfi durumu ve bu maçtaki rakiplerle aranızdaki skor
+async function afterApplied(mid){
+  const x=await loadExtra();if(!G||G.mid!==mid)return;const ev=String(x.promo_evt||'');const [k,b]=ev.split(':');
+  if(k){const el=document.createElement('div');el.className='rdelta promoev '+(k==='up'?'up':k==='fail'?'dn':'');
+    el.textContent=k==='start'?`🔥 Terfi serisi başladı! ${rankName(b)} rütbesine çıkmak için sonraki 3 maçtan 2'sini kazan.`:k==='up'?`⬆️ Tebrikler, ${rankName(b)} rütbesine yükseldin!`:k==='fail'?`Terfi serisi kaçtı. ${rankName(b)} sınırına tekrar gelince yeni seri başlar.`:`Terfi serisi sürüyor: ${x.promo?x.promo.w:0} galibiyet, ${x.promo?x.promo.l:0} mağlubiyet`;
+    $('endStats').before(el);}
+  const rv=await loadRivals();if(!G||G.mid!==mid||!NET.room)return;const me=G.players.find(p=>p.local);if(!me)return;
+  const opp=G.players.filter(p=>p.human&&p.team!==me.team).map(p=>({p,u:uidOfPeer(p.pid)})).filter(o=>o.u);
+  const lines=opp.map(o=>{const r=rv.find(z=>z.id===o.u);return r&&Number(r.games)>=2?`${o.p.name}: ${r.games} maç, ${rivalLine(r)}`:null;}).filter(Boolean);
+  if(lines.length){const el=document.createElement('div');el.className='rdelta riv';el.textContent='⚔️ '+lines.join(' · ');$('endStats').before(el);}
+}
+function uidOfPeer(pid){if(!NET.room)return null;if(pid===TAB)return uid;const p=named(NET.room.peers()).find(x=>x.peer===pid);return p&&typeof p.presence.u==='string'?p.presence.u:null;}
+function endExtras(){
+  const ex=$('endExtra');if(!ex)return;ex.innerHTML='';ex.hidden=true;if(!G||!G.net||!NET.room||G.myTeam<0)return;
+  const humans=G.players.filter(p=>p.human);if(humans.length<2)return;ex.hidden=false;
+  const mv=document.createElement('div');mv.className='mvpbox';mv.id='mvpBox';ex.appendChild(mv);
+  const rb=document.createElement('button');rb.className='chip rvbtn';rb.id='rvBtn';rb.type='button';rb.onclick=()=>{const m=G&&G.mid;if(!m||!NET.room)return;NET.room.send('rv',{mid:m,from:TAB});onRematch({mid:m,from:TAB});};ex.appendChild(rb);
+  updateRv();renderMvp();
+  const mid=G.mid;let n=0;const t=setInterval(()=>{n++;if(!G||G.mid!==mid||$('endOv').hidden||n>20){clearInterval(t);return;}if(G.reported)DB.mvpStatus(mid).then(s=>{if(G&&G.mid===mid){G.mvpVotes=s.votes||{};G.mvpMine=s.mine||G.mvpMine;renderMvp();}}).catch(()=>{});},3000);
+}
+function renderMvp(){
+  const box=$('mvpBox');if(!box||!G||!G.net)return;box.innerHTML='';
+  const fun=PH.mode!=='normal'||G.anomFlag;if(fun){box.hidden=true;return;}box.hidden=false;
+  const h=document.createElement('b');h.textContent='⭐ Maçın oyuncusu kim?';box.appendChild(h);
+  const votes=G.mvpVotes||{};const row=document.createElement('div');row.className='chips';
+  G.players.filter(p=>p.human).forEach(p=>{const u=uidOfPeer(p.pid);if(!u)return;const b=document.createElement('button');b.type='button';b.className='chip';
+    const c=Number(votes[u])||0;b.textContent=p.name+(c?` ★${c}`:'')+(p.local?' (sen)':'');b.setAttribute('aria-pressed',String(G.mvpMine===u));
+    b.disabled=p.local||!G.reported;b.onclick=async()=>{try{const r=await DB.voteMvp(G.mid,u);G.mvpMine=u;G.mvpVotes=r||{};renderMvp();}catch(e){}};row.appendChild(b);});
+  box.appendChild(row);
+  if(!G.reported){const s=document.createElement('small');s.className='note';s.textContent='Skor bildirilince oy verebilirsin.';box.appendChild(s);}
+}
+function onRematch(d){
+  if(!d||!G||!G.net||typeof d.mid!=='string'||d.mid!==G.mid||typeof d.from!=='string')return;
+  if(!NET.rv||NET.rv.mid!==d.mid)NET.rv={mid:d.mid,set:{}};NET.rv.set[d.from]=1;updateRv();
+  if(NET.isHost&&NET.rvDone!==d.mid){const here=new Set(named(NET.room.peers()).map(p=>p.peer));const need=G.players.filter(p=>p.human&&(p.pid===TAB||here.has(p.pid))).map(p=>p.pid);
+    if(need.length>=2&&need.every(pid=>NET.rv.set[pid])){NET.rvDone=d.mid;sendSys('🔁 Herkes rövanş istedi! Aynı takımlarla maç 3 saniye içinde başlıyor.');
+      setTimeout(()=>{if(!NET.room||!NET.isHost)return;if(G&&G.net&&G.net.role==='host')hostBackToRoom();setTimeout(()=>{if(NET.room&&NET.isHost&&NET.phase==='lobby')$('hsStart').click();},2500);},600);}}
+}
+function updateRv(){const b=$('rvBtn');if(!b||!G)return;const tot=G.players.filter(p=>p.human).length;const s=NET.rv&&NET.rv.mid===G.mid?NET.rv.set:{};const n=Object.keys(s).length;
+  b.textContent=`🔁 Rövanş iste (${n}/${tot})`;b.disabled=!!s[TAB];if(s[TAB])b.textContent=`🔁 Rövanş: ${n}/${tot} hazır`+(n<tot?', diğerleri bekleniyor':'');}
+// haftalık antrenman tablosu (Odalar sekmesinde antrenman listesinin altında)
+let DBK='slalom';
+async function renderDrillBoard(k){if(k)DBK=k;const list=$('drillList');if(!list)return;let box=$('drillBoard');
+  if(!box){box=document.createElement('div');box.id='drillBoard';box.className='dboard';list.after(box);}
+  box.innerHTML='';const h=document.createElement('div');h.className='dbhead';const t=document.createElement('b');t.textContent='🏆 Haftalık rekor tablosu';const sub=document.createElement('span');sub.className='note';
+  const n=new Date(),e=new Date(n);e.setDate(e.getDate()+((8-e.getDay())%7||7));e.setHours(0,0,0,0);const dd=Math.floor((e-n)/864e5),hh=Math.floor((e-n)%864e5/36e5);
+  sub.textContent=`Pazartesi sıfırlanır · ${dd?dd+' gün ':''}${hh} saat kaldı`;h.append(t,sub);box.appendChild(h);
+  const tabs=document.createElement('div');tabs.className='chips';['slalom','shoot','keeper'].forEach(x=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=DRILLS[x].name;b.setAttribute('aria-pressed',String(x===DBK));b.onclick=()=>renderDrillBoard(x);tabs.appendChild(b);});box.appendChild(tabs);
+  const body=document.createElement('div');body.className='dbbody';body.innerHTML='<p class="note">Yükleniyor…</p>';box.appendChild(body);
+  let d;try{d=await DB.drillBoard(DBK);}catch(err){body.innerHTML='';return;}body.innerHTML='';
+  const fmt=v=>DBK==='slalom'?Number(v).toFixed(1)+' sn':v+' gol';
+  if(d.last){const l=document.createElement('p');l.className='note';l.textContent=`Geçen haftanın birincisi: ${cleanBad(cleanStr(d.last.nick||'?',14))} (${fmt(d.last.score)})`;body.appendChild(l);}
+  if(!d.top||!d.top.length){const p=document.createElement('p');p.className='note';p.textContent='Bu hafta henüz kimse denemedi. İlk sen ol!';body.appendChild(p);}
+  (d.top||[]).forEach(r=>{const row=document.createElement('div');row.className='dbrow'+(r.me?' me':'');row.innerHTML='<i></i><b></b><span></span>';
+    row.querySelector('i').textContent=r.pos===1?'🥇':r.pos===2?'🥈':r.pos===3?'🥉':r.pos+'.';row.querySelector('b').textContent=cleanBad(cleanStr(r.nick||'?',14));row.querySelector('span').textContent=fmt(r.score);body.appendChild(row);});
+  if(d.me&&d.me.pos>10){const row=document.createElement('div');row.className='dbrow me';row.innerHTML='<i></i><b></b><span></span>';row.querySelector('i').textContent=d.me.pos+'.';row.querySelector('b').textContent=prof.name;row.querySelector('span').textContent=fmt(d.me.score);body.appendChild(row);}
+  if(Number(d.titles)>0){const p=document.createElement('p');p.className='note';p.textContent=`🏅 Bu antrenmanda ${d.titles} kez haftanın birincisi oldun.`;body.appendChild(p);}
+}
+// oyuncu kartı: paylaşılabilir görsel
+let CARD_BLOB=null;
+const loadImg=src=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src;});
+async function openCard(){
+  $('cardOv').hidden=false;$('cardMsg').textContent='Hazırlanıyor…';$('cardImg').removeAttribute('src');
+  const [sum,x,logo]=await Promise.all([DB.playerSummary(uid).catch(()=>({})),loadExtra(),loadImg('assets/logo.webp')]);
+  const W=1080,H=1350,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  const rk=rankOf(MYR.r,MYR.g);const kit=myTeamCache&&myTeamCache.team?cleanKit(myTeamCache.team.kit):userKit();
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#123321');bg.addColorStop(1,'#07140c');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(255,255,255,.06)';g.lineWidth=4;for(let y=0;y<H;y+=90){g.fillStyle=(y/90)%2?'rgba(255,255,255,.025)':'rgba(0,0,0,0)';g.fillRect(0,y,W,90);}
+  g.strokeStyle=rk.c;g.lineWidth=14;g.strokeRect(30,30,W-60,H-60);
+  if(logo){const lw=520,lh=lw*logo.height/logo.width;g.drawImage(logo,(W-lw)/2,70,lw,lh);}
+  drawDisc(g,W/2,470,170,kit,prof.avatar,{});
+  g.textAlign='center';g.fillStyle='#fff';g.font='800 92px system-ui,sans-serif';g.fillText(prof.name,W/2,740);
+  const tag=myTag();g.font='600 40px system-ui,sans-serif';g.fillStyle='rgba(255,255,255,.7)';g.fillText(myTeamCache&&myTeamCache.team?`${myTeamCache.team.name} (${tag})`:'Takımsız oyuncu',W/2,800);
+  g.fillStyle=rk.c;g.font='800 64px system-ui,sans-serif';g.fillText(`${rk.n}${MYR.g>=5?' · '+MYR.r:''}`,W/2,890);
+  const stats=[['Maç',sum.played],['Gol',sum.goals],['Asist',sum.assists],['Galibiyet',sum.won],['Maçın oyuncusu',x.mvp],['Günlük seri',(Number(x.streak)||0)+' gün']];
+  stats.forEach(([l,v],i)=>{const cx=W/2+((i%3)-1)*320,cy=1010+Math.floor(i/3)*150;g.fillStyle='rgba(255,255,255,.07)';g.beginPath();g.roundRect(cx-145,cy-70,290,130,22);g.fill();
+    g.fillStyle='#fff';g.font='800 56px system-ui,sans-serif';g.fillText(String(v??0),cx,cy+5);g.fillStyle='rgba(255,255,255,.6)';g.font='600 28px system-ui,sans-serif';g.fillText(l.toLocaleUpperCase('tr-TR'),cx,cy+45);});
+  const rw=(typeof MYREW!=='undefined'?MYREW:[]).map(r=>TIERS[r.tier]&&TIERS[r.tier].i).filter(Boolean).slice(0,8).join(' ');
+  g.font='600 34px system-ui,sans-serif';g.fillStyle='rgba(255,255,255,.75)';g.fillText((rw?rw+'  ·  ':'')+'xzuzu22.github.io',W/2,H-80);
+  c.toBlob(b=>{CARD_BLOB=b;$('cardImg').src=URL.createObjectURL(b);$('cardMsg').textContent='Arkadaşlarına gönder, sende kaç gol var görsünler!';
+    const f=new File([b],'uzkball-kartim.png',{type:'image/png'});$('cardShare').hidden=!(navigator.canShare&&navigator.canShare({files:[f]}));},'image/png');
+}
+$('cardClose').onclick=()=>{$('cardOv').hidden=true;};
+$('cardDl').onclick=()=>{if(!CARD_BLOB)return;const a=document.createElement('a');a.href=URL.createObjectURL(CARD_BLOB);a.download='uzkball-kartim.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);};
+$('cardShare').onclick=async()=>{if(!CARD_BLOB)return;const f=new File([CARD_BLOB],'uzkball-kartim.png',{type:'image/png'});try{await navigator.share({files:[f],title:'Uzkball oyuncu kartım',text:'Uzkball\'da benimle maç yap! ⚽'});}catch(e){}};
 
 // ---------- Telefon bildirimleri (Web Push) ----------
 const PUSH_KINDS=[['league','Lig maçı teklifleri ve maç saati hatırlatması'],['invite','Arkadaşından maç daveti'],['cup','Hafta sonu kupası başlıyor'],['friend','Arkadaşlık isteği']];
@@ -2163,7 +2296,7 @@ function showEnd(){
   $('endMsg').textContent=my<0?(a===c?'Berabere.':(a>c?G.kits[0].name:G.kits[1].name)+' kazandı.'):((my===0?a>c:c>a)?'Kazandınız!':a===c?'Berabere.':'Kaybettiniz. Rövanş isteyin.');
   document.querySelectorAll('#endOv .rdelta').forEach(e=>e.remove());
   $('againBtn').textContent='Odaya dön';$('endMenu').textContent='Odadan çık';renderEndStats();renderEndGoals();$('endOv').hidden=false;
-  recordMyMatch();adAfterMatch();
+  recordMyMatch();adAfterMatch();endExtras();
   const lc=NET.isHost?NET.cfg:(hostPeerOf(NET.room)||{presence:{}}).presence.cfg;
   if(lc&&lc.cup&&my>=0&&a!==c)DB.cupRpc('cup_report',{p_match:lc.cup,p_home:a,p_away:c}).then(()=>{$('endMsg').textContent+=' Kupa skoru kaydedildi, rakip kaptanın onayı bekleniyor.';}).catch(()=>{});
   if(lc&&lc.league&&my>=0)DB.leagueRpc('report_league_result',{p_match:lc.league,p_home:a,p_away:c}).then(()=>{$('endMsg').textContent+=' Lig skoru kaydedildi, rakip kaptanın onayı bekleniyor.';}).catch(()=>{});
@@ -2200,7 +2333,7 @@ function drawBubbles(){
 let saveT=null;
 function queueSave(){$('saveState').textContent='Kaydediliyor…';clearTimeout(saveT);saveT=setTimeout(async()=>{try{await DB.saveProfile();$('saveState').textContent='Kaydedildi.';}catch(e){$('saveState').textContent='Kaydedilemedi: '+errText(e);}},700);
   renderMe();pushLobby();if(NET.room)pushRoom();}
-function renderMe(){const mn=$('meNick');mn.textContent='';mn.appendChild(nickEl(myTag(),prof.name,'','span'));mn.appendChild(rankEl(MYR.r,MYR.g,false));if(NET.lobby)pushTag();$('meAv').textContent=prof.avatar;const k=myTeamCache&&myTeamCache.team?cleanKit(myTeamCache.team.kit):{p:prof.p};$('meAv').style.background=k.p;$('meAv').style.color=lum(k.p)>0.6?'#111':'#fff';}
+function renderMe(){const mn=$('meNick');mn.textContent='';mn.appendChild(nickEl(myTag(),prof.name,'','span'));mn.appendChild(rankEl(MYR.r,MYR.g,false));if(EXTRA.streak>0){const f=document.createElement('span');f.className='streak'+(EXTRA.today?'':' dim');f.title=EXTRA.today?`${EXTRA.streak} gündür her gün oynuyorsun`:`${EXTRA.streak} günlük serin var, bugün bir maç oyna ki bozulmasın`;f.textContent='🔥'+EXTRA.streak;mn.appendChild(f);}if(NET.lobby)pushTag();$('meAv').textContent=prof.avatar;const k=myTeamCache&&myTeamCache.team?cleanKit(myTeamCache.team.kit):{p:prof.p};$('meAv').style.background=k.p;$('meAv').style.color=lum(k.p)>0.6?'#111':'#fff';}
 // ---------- Oyuncu istatistikleri ----------
 const ago=t=>{const s=(Date.now()-new Date(t).getTime())/1000;if(!(s>=0))return'';if(s<3600)return Math.max(1,Math.round(s/60))+' dk önce';if(s<86400)return Math.round(s/3600)+' sa önce';return Math.round(s/86400)+' gün önce';};
 function statsView(box,d){
@@ -2257,7 +2390,7 @@ function reportForm(box,u,nick){
 $('statOv').addEventListener('click',e=>{if(e.target.id==='statOv')$('statOv').hidden=true;});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('statOv').hidden)$('statOv').hidden=true;});
 async function renderMyStats(){const box=$('myStats');if(!box)return;box.innerHTML='<p class="note">Yükleniyor…</p>';
-  try{statsView(box,await DB.playerSummary(uid));if(MOD.leaves_total){const n=document.createElement('p');n.className='note leavenote';n.textContent=`Yarıda bıraktığın maç: ${MOD.leaves_total}`+(MOD.leaves_24h?` (son 24 saatte ${MOD.leaves_24h})`:'')+'. Her terk −20 beceri puanı ve 1 dakika maç bulma cezası getirir.';box.appendChild(n);}}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
+  try{statsView(box,await DB.playerSummary(uid));renderCompete(box);if(MOD.leaves_total){const n=document.createElement('p');n.className='note leavenote';n.textContent=`Yarıda bıraktığın maç: ${MOD.leaves_total}`+(MOD.leaves_24h?` (son 24 saatte ${MOD.leaves_24h})`:'')+'. Her terk −20 beceri puanı ve 1 dakika maç bulma cezası getirir.';box.appendChild(n);}}catch(e){box.innerHTML='';const p=document.createElement('p');p.className='err';p.textContent='İstatistik alınamadı: '+errText(e);box.appendChild(p);}}
 function renderProfile(){renderMyStats();renderLooks();renderQuests();
   $('inName').value=prof.name;renderJersey();
   const box=$('nameColors');box.innerHTML='';
@@ -2333,6 +2466,9 @@ async function renderTeam(){
   const t=mt.team,cap=mt.role==='kaptan',kit=cleanKit(t.kit);
   const head=document.createElement('div');head.className='panel';
   head.innerHTML='<h2><canvas width="56" height="56" style="width:28px;height:28px"></canvas><span class="tn"></span> <span class="tag ab"></span></h2><div class="note info"></div>';
+  {const L=teamLvl(t.xp);const lv=document.createElement('div');lv.className='tlvl'+(L.l>=10?' l10':L.l>=5?' l5':'');lv.innerHTML='<b></b><div class="tlbar"><i></i></div><span></span>';
+    lv.querySelector('b').textContent=`Takım seviyesi ${L.l}`;lv.querySelector('i').style.width=Math.round((L.xp-L.a)/(L.b-L.a)*100)+'%';
+    lv.querySelector('span').textContent=`${L.xp} XP · ${L.l+1}. seviyeye ${L.b-L.xp} XP · üyelerin her maçı XP kazandırır (galibiyet 3, beraberlik 2, mağlubiyet 1)`+(L.l<5?' · 5. seviyede rozet parlar':L.l<10?' · 10. seviyede altın rozet':'');head.appendChild(lv);}
   head.querySelector('.tn').textContent=t.name;head.querySelector('.ab').textContent=t.abbr;drawBadge(head.querySelector('canvas'),cleanKit(t.kit||kit));
   head.querySelector('.info').textContent=`${t.tier}. Lig · ${t.points} puan · ${t.played} maç (${t.won}G ${t.drawn}B ${t.lost}M) · averaj ${t.gf-t.ga>=0?'+':''}${t.gf-t.ga} · rolün: ${cap?'Kaptan':'Oyuncu'}`;
   P.appendChild(head);
@@ -2465,7 +2601,7 @@ async function renderLeague(){
       list.forEach((t,i)=>{const tr=document.createElement('tr');const cls=[];if(t.id===myId)cls.push('me');
         if(zones&&tier>1&&i<2)cls.push('zup');if(zones&&tier<6&&i>=list.length-2)cls.push('zdown');if(zones&&tier===1&&i===0)cls.push('zchamp');tr.className=cls.join(' ');
         tr.innerHTML=`<td>${i+1}</td><td></td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.gf-t.ga}</td><td class="n">${t.points}</td>`;
-        tr.children[1].append(badgeEl(t.kit,18),document.createTextNode(t.name+' ('+t.abbr+')'));const te=titleEl(t.id);if(te)tr.children[1].append(te);tb.appendChild(tr);});
+        tr.children[1].append(badgeEl(t.kit,18),document.createTextNode(t.name+' ('+t.abbr+')'));{const L=teamLvl(t.xp);if(L.l>=2){const sp=document.createElement('span');sp.className='tlv'+(L.l>=10?' l10':L.l>=5?' l5':'');sp.textContent='Sv.'+L.l;sp.title=`Takım seviyesi ${L.l} · ${L.xp} XP`;tr.children[1].append(sp);}}const te=titleEl(t.id);if(te)tr.children[1].append(te);tb.appendChild(tr);});
       wrap.appendChild(tb);sec.appendChild(wrap);
       const fx=lm.filter(m=>m.tier===tier&&(m.status==='accepted'||m.status==='played'||m.status==='reported')).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at));
       const up=fx.filter(m=>m.status!=='played').slice(0,6),done=fx.filter(m=>m.status==='played').slice(-6).reverse();
@@ -2491,7 +2627,7 @@ function enterMain(){
   const chk=()=>DB.restrictions().then(r=>{Object.assign(MOD,r||{});
     if(MOD.banned_until&&new Date(MOD.banned_until)>new Date()){leaveRoom(true);try{NET.lobby&&NET.lobby.leave();}catch(e){}NET.lobby=null;show('gate');$('gateForm').hidden=true;
       $('gateMsg').textContent='Hesabın '+new Date(MOD.banned_until).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' tarihine kadar oyundan uzaklaştırıldı.'+(MOD.ban_reason?' Sebep: '+MOD.ban_reason:'');}}).catch(()=>{});
-  chk();setInterval(chk,120000);DB.pingActive().catch(()=>{});setInterval(()=>DB.pingActive().catch(()=>{}),10*60e3);
+  chk();setInterval(chk,120000);loadExtra();DB.pingActive().catch(()=>{});setInterval(()=>DB.pingActive().catch(()=>{}),10*60e3);
   loadFriends(true);setInterval(()=>loadFriends(),60000);
   DB.questStatus().then(q=>{QSTARS=Number(q.stars)||0;if(prof.trail&&LOCKS.trail[prof.trail]>QSTARS)prof.trail='none';if(prof.ball&&LOCKS.ball[prof.ball]>QSTARS)prof.ball='classic';}).catch(()=>{});
   setTimeout(checkAdminRoute,300);DB.adminRpc('is_admin').then(v=>{IS_ADMIN=!!v;const b=$('adminBtn');if(b)b.hidden=!IS_ADMIN;}).catch(()=>{});
