@@ -302,3 +302,9 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .repctl{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .repctl .chip[aria-pressed="true"]{background:var(--flood);color:#111;border-color:var(--flood)}
 #repMsg:empty{display:none}
+/* şikâyet / susturma */
+.modrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}
+.chip.danger{border-color:var(--danger);color:#ffb3ab}
+.repform{display:flex;flex-direction:column;gap:8px;width:100%;text-align:left}
+.repform .chips{display:flex;flex-wrap:wrap;gap:6px}
+.repform .chip[aria-pressed="true"]{background:var(--danger);border-color:var(--danger);color:#fff}
