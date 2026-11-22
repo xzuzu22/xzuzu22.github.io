@@ -472,7 +472,7 @@ let CELFX=[];
 function preloadCels(){if(!G)return;const need=new Set(G.players.map(p=>p.cel).filter(Boolean));
   if(need.has('confetti'))celImg('confetti');if(need.has('fireworks')){celImg('firework');celImg('sparks');}if(need.has('fire')){celImg('flame');celImg('sparks');}if(need.has('banner'))celImg('banner');}
 function startCel(p,team){
-  if(!p||!p.cel||!G)return;const t0=performance.now(),k=p.cel,kit=G.kits[p.team]||{p:'#fff',s:'#fff'};
+  if(!p||!p.cel||!G)return;if(window.__celLog)window.__celLog.push(p.name+":"+p.cel);const t0=performance.now(),k=p.cel,kit=G.kits[p.team]||{p:'#fff',s:'#fff'};
   if(k==='confetti'){const parts=[];for(let i=0;i<90;i++){const a=Math.random()*Math.PI*2,v=2+Math.random()*6;parts.push({x:p.x,y:p.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,f:i%10,r:Math.random()*6.28,vr:(Math.random()-.5)*0.4,s:9+Math.random()*7,ph:Math.random()*6.28});}
     CELFX.push({k,t0,dur:3200,parts});}
   else if(k==='fireworks'){const sx=team===0?1:-1,bursts=[];for(let i=0;i<6;i++)bursts.push({x:sx*(FW*(0.55+Math.random()*0.35)),y:(Math.random()*2-1)*FH*0.75,d:i*240+Math.random()*120,s:FH*(0.9+Math.random()*0.5),rot:Math.random()*6.28,hue:i});
@@ -1274,19 +1274,31 @@ const errText=e=>{const m=(e&&(e.message||e.error_description))||String(e);
 // =====================================================================
 function makeRoomSB(name){
   const ch=sb.channel(name,{config:{presence:{key:TAB},broadcast:{self:false}}});
+  // Supabase presence sınırı: istemci başına 30 sn'de en fazla 5 güncelleme (ücretsiz planda proje geneli 20/sn).
+  // Bu yüzden presence en fazla 6,2 sn'de bir gönderilir; oda kanallarında değişiklikler ayrıca anında '_p' yayınıyla iletilir.
+  const fast=name.startsWith('uzk-r-');const over={};let seq=0,lastTrack=0,bTimer=null;
   let mine={},hs=new Set(),evs={},cached=Object.freeze([]),subscribed=false,timer=null,lastSent='';
   const selfEntry=()=>Object.freeze({peer:TAB,sameTab:true,isMe:true,kind:'viewer',presence:Object.freeze(JSON.parse(JSON.stringify(mine)))});
   const fire=()=>hs.forEach(h=>{try{h({peers:cached});}catch(e){console.error(e);}});
   const rebuild=()=>{const st=ch.presenceState();const arr=[];
-    for(const k in st){if(k===TAB)continue;const metas=st[k];const m=metas&&metas[metas.length-1];if(!m)continue;const {presence_ref,...p}=m;
+    for(const k in st){if(k===TAB)continue;const metas=st[k];const m=metas&&metas[metas.length-1];if(!m)continue;const {presence_ref,...p0}=m;
+      const o=over[k];const p=o&&(Number(o._s)||0)>(Number(p0._s)||0)?o:p0;
       arr.push(Object.freeze({peer:k,sameTab:false,isMe:false,kind:'viewer',presence:Object.freeze(p)}));}
+    for(const k in over)if(!st[k])delete over[k];
     arr.push(selfEntry());cached=Object.freeze(arr);fire();};
   ch.on('presence',{event:'sync'},rebuild);
   for(const ev of ['sig','g','in'])ch.on('broadcast',{event:ev},({payload})=>{const f=evs[ev];if(f)f(payload);});
-  const flush=()=>{timer=null;if(!subscribed)return;const s=JSON.stringify(mine);if(s===lastSent)return;lastSent=s;ch.track(mine).catch(()=>{});};
+  if(fast)ch.on('broadcast',{event:'_p'},({payload})=>{if(!payload||typeof payload.peer!=='string'||payload.peer===TAB||!payload.p||typeof payload.p!=='object')return;
+    const cur=over[payload.peer];if(cur&&(Number(cur._s)||0)>=(Number(payload.p._s)||0))return;over[payload.peer]=payload.p;if(ch.presenceState()[payload.peer])rebuild();});
+  const flush=()=>{timer=null;if(!subscribed)return;const s=JSON.stringify(mine);if(s===lastSent)return;
+    const wait=lastTrack+6200-Date.now();if(wait>0){timer=setTimeout(flush,wait);return;}
+    lastSent=s;lastTrack=Date.now();ch.track(mine).catch(()=>{});};
+  const fastSend=()=>{bTimer=null;if(!subscribed)return;ch.send({type:'broadcast',event:'_p',payload:{peer:TAB,p:mine}}).catch(()=>{});};
   const api={name,
-    presence(patch){for(const k in patch){if(patch[k]===null)delete mine[k];else mine[k]=patch[k];}
+    presence(patch){let chg=false;for(const k in patch){const v=patch[k];if(v===null){if(k in mine){delete mine[k];chg=true;}}else if(JSON.stringify(mine[k])!==JSON.stringify(v)){mine[k]=v;chg=true;}}
+      if(!chg)return Promise.resolve();mine._s=Date.now()*1000+(++seq%1000);
       cached=Object.freeze(cached.filter(p=>!p.sameTab).concat([selfEntry()]));fire();
+      if(fast&&subscribed&&!bTimer)bTimer=setTimeout(fastSend,120);
       if(!timer)timer=setTimeout(flush,100);return Promise.resolve();},
     peers:()=>cached,
     onPeers(h){hs.add(h);setTimeout(()=>h({peers:cached}));return()=>hs.delete(h);},
@@ -1391,17 +1403,34 @@ function pushTag(){pushLobby();if(NET.room)pushRoom();}
 async function netConnect(){
   if(NET.state==='on'||NET.state==='connecting')return;
   NET.state='connecting';renderNetState();
-  let lobby;try{lobby=makeRoom('uzk-lobby');}catch(e){lobby=null;}
-  const ok=lobby&&await lobby.ready;
-  if(!ok){NET.state='bad';renderNetState('Canlı sunucuya bağlanılamadı. Biraz sonra tekrar dene; botlara karşı antrenman açık.');setTimeout(()=>{NET.state='off';netConnect();},8000);return;}
+  const lobby=await joinLobby();
+  if(!lobby){NET.state='bad';renderNetState('Canlı sunucuya bağlanılamadı. Biraz sonra tekrar dene; botlara karşı antrenman açık.');setTimeout(()=>{NET.state='off';netConnect();},8000);return;}
   NET.lobby=lobby;NET.state='on';
-  lobby.onPeers(()=>schedule(renderOnline));
-  lobby.on('qm',onQueueMatch);lobby.on('inv',onInvite);lobby.on('frq',d=>{if(d&&d.to===uid)loadFriends(true);});
   pushLobby();renderNetState('');renderOnline();
 }
+async function joinLobby(){
+  let lobby;try{lobby=makeRoom('uzk-lobby');}catch(e){return null;}
+  if(!(await lobby.ready)){try{lobby.leave();}catch(e){}return null;}
+  lobby.onPeers(()=>schedule(renderOnline));
+  lobby.on('qm',onQueueMatch);lobby.on('inv',onInvite);lobby.on('frq',d=>{if(d&&d.to===uid)loadFriends(true);});
+  return lobby;
+}
+// Kapasite: lobi kanalında her güncelleme kanaldaki herkese gider (100 kişide 100 mesaj). Maçtaki oyuncular (oda sahibi hariç)
+// maç süresince lobiden çıkar, maç bitince geri döner; oda sahibi odasını listede tutmak için kalır.
+async function lobbyTick(){
+  if(NET.state!=='on'||NET.lobbyBusy)return;
+  const inMatch=!!(NET.room&&!NET.isHost&&G&&G.net&&G.net.role==='client'&&G.state!=='over');
+  if(inMatch&&NET.lobby&&!NET.queue){NET.lobbyBusy=true;const l=NET.lobby;NET.lobby=null;NET.lobbyPaused=true;try{await l.leave();}catch(e){}NET.lobbyBusy=false;}
+  else if(!inMatch&&NET.lobbyPaused){NET.lobbyBusy=true;const l=await joinLobby();NET.lobbyBusy=false;if(l){NET.lobby=l;NET.lobbyPaused=false;pushLobby();renderOnline();}}
+}
+setInterval(lobbyTick,2000);
+// Lobi kanalında herkes herkesi dinler: her güncelleme ~oyuncu sayısı kadar mesaj demek. Ping'i kaba gruplarla
+// (iyi/orta/kötü) ve eşik payıyla yayınla ki maç sırasında küçük dalgalanmalar 100 kişiye boşuna mesaj göndermesin.
+function lobbyQ(){const a=avgPing();if(!a)return NET.lqB||0;const b=NET.lqB||0;
+  const nb=a<90?40:a<180?120:250;if(nb!==b){const lo=b===40?0:b===120?90:180,hi=b===40?90:b===120?180:1e9;if(!b||a<lo-15||a>hi+15)NET.lqB=nb;}return NET.lqB||nb;}
 function pushLobby(){
   if(!NET.lobby)return;
-  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,mode:cleanMode(NET.cfg.mode),n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:avgPing()}:null;
+  const host=NET.isHost&&NET.room&&NET.cfg?{code:NET.code,name:NET.cfg.name,map:NET.cfg.map,mode:cleanMode(NET.cfg.mode),n:hostHumanCount(),max:NET.cfg.max,ph:NET.phase,priv:NET.cfg.priv?1:0,ar:roomAvgR(),lq:lobbyQ()}:null;
   NET.lobby.presence({nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,r:MYR.r,rg:MYR.g,sr:bestTier(),chat:NET.lobbyChat,host,q:NET.queue&&!NET.room?{m:NET.queue.m,t:NET.queue.t}:null,inRoom:NET.room?1:0,rc:NET.room&&!(roomView()||{cfg:{}}).cfg.priv?NET.code:''});
 }
 function renderNetState(msg){
@@ -1419,7 +1448,8 @@ function lobbyRooms(){
 function renderOnline(){
   if(!NET.lobby||$('main').hidden)return;
   const ps=named(NET.lobby.peers());
-  $('onlineCount').textContent=ps.length+' çevrimiçi';
+  const inGame=ps.reduce((t,p)=>t+(p.presence.host&&p.presence.host.ph==='game'?Math.max(0,(Number(p.presence.host.n)||1)-1):0),0);
+  $('onlineCount').textContent=(ps.length+inGame)+' çevrimiçi';
   const rooms=lobbyRooms().sort((a,b)=>(b.n||0)-(a.n||0));
   $('roomCount').textContent=rooms.length;
   const list=$('roomList');list.innerHTML='';
@@ -1683,7 +1713,7 @@ $('copyCode').onclick=()=>{const t=NET.code||'';const done=ok=>{const b=$('copyC
 function pushRoom(){
   if(!NET.room)return;
   const pr={pn:NET.isHost?0:(NET.ping||0),nick:prof.name,av:prof.avatar,nc:prof.nameColor,tg:myTag(),u:uid,cel:prof.cel,tr:prof.trail,r:MYR.r,rg:MYR.g,sr:bestTier(),qm:QSTARS>=30?1:0,tid:myTeamCache&&myTeamCache.team?myTeamCache.team.id:'',want:NET.want,ready:NET.ready,chat:NET.roomChat};
-  if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:avgPing(),afk:NET.afk||[],mid:NET.mid||'',code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
+  if(NET.isHost)Object.assign(pr,{H:1,hs:NET.hostSince||0,lq:Math.round(avgPing()/50)*50,afk:NET.afk||[],mid:NET.mid||'',code:NET.code,cfg:NET.cfg,teams:NET.teams,bots:NET.bots,phase:NET.phase,ro:NET.ro});
   NET.room.presence(pr);
 }
 const hostPeerOf=r=>r?named(r.peers()).find(p=>p.presence.H===1&&p.presence.code===NET.code):null;
@@ -1743,7 +1773,7 @@ setInterval(()=>{ // oda sahibi gitti mi?
 
 // ---------- Gecikme ölçümü ve oda sahibi devri ----------
 setInterval(()=>{if(!NET.room||NET.isHost)return;const h=hostPeerOf(NET.room);const dc=h&&dcOpen(h.peer);if(dc){try{dc.send(JSON.stringify({pi:performance.now()}));}catch(e){}}else if(h)NET.ping=0;},2000);
-setInterval(()=>{if(NET.room&&!NET.isHost&&NET.ping)pushRoom();if(NET.room&&NET.isHost)pushLobby();},6000);
+setInterval(()=>{if(NET.room&&!NET.isHost&&NET.ping&&(Math.abs(NET.ping-(NET.pnSent||0))>40||Date.now()-(NET.pnAt||0)>30000)){NET.pnSent=NET.ping;NET.pnAt=Date.now();pushRoom();}if(NET.room&&NET.isHost)pushLobby();},6000);
 const pingCls=ms=>ms<80?'good':ms<160?'ok':'bad';
 function pingEl(ms){const e=document.createElement('span');e.className='ping '+pingCls(ms);e.textContent=ms+' ms';e.title='Gecikme (ping)';return e;}
 function avgPing(){if(!NET.room)return 0;const a=named(NET.room.peers()).filter(p=>!p.presence.H&&p.presence.pn>0).map(p=>p.presence.pn);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;}
@@ -2216,7 +2246,7 @@ function netHostPublish(){
   const msg=JSON.stringify({g});let needRelay=false;
   for(const p of named(NET.room.peers())){if(p.sameTab)continue;const t=NET.teams[p.peer];if(t==='full'||t==='kicked')continue;const dc=dcOpen(p.peer);
     if(dc){try{dc.send(msg);}catch(e){needRelay=true;}}else needRelay=true;}
-  if(needRelay&&NET.pubN%4===0)NET.room.send('g',g); // doğrudan bağlanamayanlar için 15 Hz yedek
+  if(needRelay&&NET.pubN%6===0)NET.room.send('g',g); // doğrudan bağlanamayanlar için 10 Hz yedek (Supabase mesaj sınırı için)
 }
 function hostBackToRoom(){NET.phase='lobby';NET.ro=null;pushRoom();pushLobby();G=null;show('roomScr');renderRoom();}
 
