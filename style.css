@@ -492,3 +492,7 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .tlvl.l5 .tlbar i{background:linear-gradient(90deg,#4a7fd6,#9cc3ff)}.tlvl.l10 .tlbar i{background:linear-gradient(90deg,#d6a52a,#f7d774)}
 .cardpanel{max-width:460px;width:calc(100% - 32px);align-items:center}.cardpanel img{width:100%;max-height:60vh;object-fit:contain;border-radius:12px;background:#0b1811}
 #bugOv,#cardOv{position:fixed;z-index:60}
+.hostb{margin-left:6px;padding:1px 7px;border-radius:999px;font-size:.72em;font-weight:800;background:#f2c230;color:#1a1a1a;white-space:nowrap;vertical-align:middle}
+.ishost{box-shadow:inset 3px 0 0 #f2c230}
+.pchip .hostb{flex:none;margin-left:0}
+@media (max-width:600px){.teams3{grid-template-columns:1fr}.teams3>:nth-child(2){order:3}.pchip{font-size:14px;padding:7px 9px}}

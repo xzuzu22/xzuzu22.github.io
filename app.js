@@ -2133,7 +2133,8 @@ function renderRoom(){
   if(!v){$('rName').textContent='Odaya bağlanılıyor…';$('rMeta').textContent='';$('rStatus').textContent='Oda sahibi bekleniyor.';return;}
   const cfg=v.cfg,kits=[kitOf(cfg.kits?cfg.kits[0]:0),kitOf(cfg.kits?cfg.kits[1]:1)];
   $('rName').textContent=cleanStr(cfg.name,28)||'Oda';
-  $('rMeta').textContent=`${cfg.cup?'🏆 Kupa maçı · ':cfg.league?'🏆 Lig maçı · ':cfg.qteams?'🏆 Dereceli · ':''}${MODES[cfg.mode]&&cfg.mode!=='normal'?MODES[cfg.mode].i+' '+MODES[cfg.mode].n+' (derecesiz) · ':''}${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
+  {const hp=named(NET.room.peers()).find(p=>p.peer===v.host);NET.hostNickTxt=hp?'🏠 Kurucu: '+cleanBad(cleanStr(hp.presence.nick,14))+' · ':'';}
+  $('rMeta').textContent=NET.hostNickTxt+`${cfg.cup?'🏆 Kupa maçı · ':cfg.league?'🏆 Lig maçı · ':cfg.qteams?'🏆 Dereceli · ':''}${MODES[cfg.mode]&&cfg.mode!=='normal'?MODES[cfg.mode].i+' '+MODES[cfg.mode].n+' (derecesiz) · ':''}${MAPS[cfg.map]?MAPS[cfg.map].name:'?'} saha · ${(SKINS[cfg.skin]||SKINS.classic).name} · ${Math.round((cfg.time||0)/60)} dk · ${cfg.goals?cfg.goals+' gol sınırı':'gol sınırı yok'} · en fazla ${cfg.max} kişi${cfg.priv?' · gizli oda':''}${cfg.free?' · serbest takım seçimi':' · takımları oda sahibi dağıtır'}`;
   const ps=named(NET.room.peers());const cols={red:[],spec:[],blue:[]};
   for(const p of ps){const t=v.teams[p.peer]||'spec';if(t==='full'||t==='kicked')continue;(cols[t]||cols.spec).push({p});}
   for(const b of v.bots){if(b&&(b.team===0||b.team===1))cols[b.team===0?'red':'blue'].push({bot:b});}
@@ -2148,13 +2149,13 @@ function renderRoom(){
       const k=ti>=0?kits[ti]:{p:'#55625a',s:'#55625a',pat:'solid'};av.style.background=k.p;av.style.color=lum(k.p)>0.6?'#111':'#fff';
       if(it.bot){av.textContent=cleanStr(it.bot.av,2);nm.textContent=cleanStr(it.bot.name,14)+' (bot)';st.textContent='🤖';
         if(NET.isHost)c.onclick=()=>{NET.bots=NET.bots.filter(b=>b!==it.bot);pushRoom();renderRoom();};}
-      else{const pr=it.p.presence;av.textContent=cleanStr(pr.av,2)||'?';nm.textContent='';nm.appendChild(nickEl(pr.tg,cleanStr(pr.nick,14)+(it.p.peer===v.host?' 👑':''),cleanCol(pr.nc),'span'));nm.appendChild(rankEl(pr.r,pr.rg,true));if(cleanTier(pr.sr))nm.appendChild(tierEl(pr.sr));if(pr.qm===1){const q=document.createElement('span');q.className='tierb';q.textContent='⭐';q.title='Görev ustası';nm.appendChild(q);}
+      else{const pr=it.p.presence;av.textContent=cleanStr(pr.av,2)||'?';nm.textContent='';nm.appendChild(nickEl(pr.tg,cleanStr(pr.nick,14),cleanCol(pr.nc),'span'));if(it.p.peer===v.host){const hb=document.createElement('span');hb.className='hostb';hb.textContent='🏠 Kurucu';hb.title='Odayı kuran kişi: takımları dağıtır, maçı başlatır';c._hb=hb;c.classList.add('ishost');}nm.appendChild(rankEl(pr.r,pr.rg,true));if(cleanTier(pr.sr))nm.appendChild(tierEl(pr.sr));if(pr.qm===1){const q=document.createElement('span');q.className='tierb';q.textContent='⭐';q.title='Görev ustası';nm.appendChild(q);}
         if(it.p.sameTab)c.classList.add('me');
         const link=NET.isHost&&!it.p.sameTab?(dcOpen(it.p.peer)?' ·P2P':' ·yedek'):'';
         st.textContent=(v.phase==='lobby'&&pr.ready?'hazır':'')+link;if(pr.ready)st.classList.add('ok');
         if(it.p.peer!==v.host){const pm=it.p.sameTab?(NET.ping||0):(Number(pr.pn)||0);if(pm)st.prepend(pingEl(pm));}
         if(NET.isHost)c.onclick=()=>openPlayerMenu(it.p.peer,cleanStr(pr.nick,14),pr.u,pr.tg);else{c.style.cursor='pointer';c.onclick=()=>openStats(pr.u,cleanStr(pr.nick,14),pr.tg);}}
-      c.append(av,nm,st);list.appendChild(c);});
+      c.append(av,nm);if(c._hb)c.append(c._hb);c.append(st);list.appendChild(c);});
     const jb=col.querySelector('.join');const myT=v.teams[v.me]||'spec';
     jb.disabled=myT===key||v.phase!=='lobby'||(!cfg.free&&!NET.isHost);jb.hidden=!!cfg.lteam&&key!=='spec';
     jb.title=!cfg.free&&!NET.isHost?'Takımları oda sahibi dağıtıyor':'';
