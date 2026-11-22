@@ -309,7 +309,10 @@ tr.zchamp td:first-child{box-shadow:inset 3px 0 0 #f2c230}
 .repform .chips{display:flex;flex-wrap:wrap;gap:6px}
 .repform .chip[aria-pressed="true"]{background:var(--danger);border-color:var(--danger);color:#fff}
 /* beceri puanı */
-.rk{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:800;color:#111;background:var(--rk);line-height:1.5;vertical-align:middle}
+.rk{display:inline-flex;align-items:center;gap:3px;margin-left:5px;vertical-align:middle;line-height:1;flex:none}
+.rk svg{width:22px;height:22px;flex:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))}
+.rk b{font-size:11px;font-weight:800;color:var(--rk)}
+.rk.sm svg{width:20px;height:20px}
 .rankbar{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;margin:10px 0 4px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left}
 .rankbar b{color:var(--rk);font-family:var(--f-display);font-size:20px;letter-spacing:.04em}
 .rankbar span{font-size:13px;color:var(--muted);justify-self:end}
@@ -496,3 +499,5 @@ input[type=number]{background:#0b1811;border:1px solid var(--line);border-radius
 .ishost{box-shadow:inset 3px 0 0 #f2c230}
 .pchip .hostb{flex:none;margin-left:0}
 @media (max-width:600px){.teams3{grid-template-columns:1fr}.teams3>:nth-child(2){order:3}.pchip{font-size:14px;padding:7px 9px}}
+
+.rankbar{grid-template-columns:auto auto 1fr}.rankbar .rbig{grid-row:span 2}.rankbar .rbig svg{width:58px;height:58px;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}.rankbar i{grid-column:2 / -1}

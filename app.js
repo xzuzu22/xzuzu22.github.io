@@ -1526,14 +1526,51 @@ async function renderRanking(box){
   const row=(x)=>{const r=document.createElement('div');r.className='rrow'+(x.id===uid?' me':'')+(x.pos<=3?' p'+x.pos:'');
     r.innerHTML='<span class="pos"></span><span class="av"></span><span class="nm"></span><span class="pt"></span>';
     r.querySelector('.pos').textContent=x.pos<=3?['🥇','🥈','🥉'][x.pos-1]:x.pos;r.querySelector('.av').textContent=cleanStr(x.avatar||'',2)||'?';
-    const nm=r.querySelector('.nm');nm.appendChild(nickEl(x.tag,cleanStr(x.nick||'Oyuncu',14),cleanCol(x.name_color||'#ffffff'),'span'));nm.appendChild(rankEl(x.rating,x.games,false));if(cleanTier(x.best))nm.appendChild(tierEl(x.best));
+    const nm=r.querySelector('.nm');nm.appendChild(nickEl(x.tag,cleanStr(x.nick||'Oyuncu',14),cleanCol(x.name_color||'#ffffff'),'span'));nm.appendChild(rankEl(x.rating,x.games,'name'));if(cleanTier(x.best))nm.appendChild(tierEl(x.best));
     r.querySelector('.pt').textContent=x.rating;r.onclick=()=>openStats(x.id,x.nick||'Oyuncu',x.tag);return r;};
   top.slice(0,10).forEach(x=>L.appendChild(row(x)));
   if(top.length>10){const more=document.createElement('button');more.className='chip';more.textContent=`İlk ${top.length} oyuncuyu göster`;more.onclick=()=>{top.slice(10).forEach(x=>L.insertBefore(row(x),more));more.remove();};L.appendChild(more);}
   const me=sec.querySelector('.rme');
   me.textContent=d.me?`Senin sıran: ${d.me.pos}. (${d.total} oyuncu içinde) · ${d.me.rating} puan`:(MYR.g<5?`Sıralamaya girmek için ${5-MYR.g} maç daha oyna.`:'');
 }
-function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk';s.style.setProperty('--rk',k.c);const pl=k.n==='Yerleşiyor';s.textContent=short?(pl?'Yeni':k.n):k.n+(pl?'':' '+k.r);s.title=pl?`Yeni oyuncu: ilk 5 maçını oynayınca rütbesi belli olur (${Math.min(5,Number(g)||0)}/5)`:k.n+' rütbesi · '+k.r+' beceri puanı';return s;}
+// Uzkball rütbe rozetleri (SVG). [orta, koyu, açık, işaret]
+const RB={yeni:['#c3cec8','#6f7c75','#eef3f0','#5f6b65'],bronz:['#d98f55','#7d441a','#f6c79c','#6b3812'],gumus:['#dfe5ea','#7f8a95','#ffffff','#56616c'],
+  altin:['#ffcf3a','#a87700','#fff1a8','#8a6200'],platin:['#5fdccd','#15786e','#d4fff9','#0f5f57'],elmas:['#7fb8ff','#2350c4','#e3f1ff','#1a3f9e'],usta:['#df8cff','#6c25a8','#fbe3ff','#5a1a8f']};
+var RBN=0;
+function rbBall(cx,cy,r){const id='rbc'+(RBN++);const P=(a,rr)=>[cx+rr*Math.cos(a),cy+rr*Math.sin(a)];
+  const pent=(x,y,rr,rot)=>[0,1,2,3,4].map(i=>{const a=rot+i*2*Math.PI/5;return (x+rr*Math.cos(a)).toFixed(2)+','+(y+rr*Math.sin(a)).toFixed(2);}).join(' ');
+  let s=`<clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath><circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff"/><g clip-path="url(#${id})">`;
+  s+=`<polygon points="${pent(cx,cy,r*0.36,-Math.PI/2)}" fill="#151515"/>`;
+  for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;const v=P(a,r*0.36),e=P(a,r*0.62);s+=`<line x1="${v[0].toFixed(2)}" y1="${v[1].toFixed(2)}" x2="${e[0].toFixed(2)}" y2="${e[1].toFixed(2)}" stroke="#151515" stroke-width="${(r*0.09).toFixed(2)}"/>`;
+    const o=P(a+Math.PI/5,r*1.02);s+=`<polygon points="${pent(o[0],o[1],r*0.36,a+Math.PI/5+Math.PI)}" fill="#151515"/>`;
+    const e2=P(a+Math.PI/5,r*0.62);s+=`<line x1="${e[0].toFixed(2)}" y1="${e[1].toFixed(2)}" x2="${e2[0].toFixed(2)}" y2="${e2[1].toFixed(2)}" stroke="#151515" stroke-width="${(r*0.09).toFixed(2)}"/>`;}
+  s+=`</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#151515" stroke-width="1.6"/><ellipse cx="${cx-r*0.35}" cy="${cy-r*0.45}" rx="${r*0.28}" ry="${r*0.16}" fill="#fff" opacity=".55" transform="rotate(-30 ${cx-r*0.35} ${cy-r*0.45})"/>`;
+  return s;}
+function rankBadge(k,id){
+  const [m,d,l,mk]=RB[k];const g=`rg${id||k}${RBN++}`;
+  const defs=`<defs><linearGradient id="${g}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${l}"/><stop offset=".5" stop-color="${m}"/><stop offset="1" stop-color="${d}"/></linearGradient></defs>`;
+  const shield=`<path d="M32 5 L54 12 V30 C54 45 44 54 32 59 C20 54 10 45 10 30 V12 Z" fill="url(#${g})" stroke="${d}" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 9 L50 15 V30 C50 42 42 50 32 54.5" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/>`;
+  const chev=n=>{let s='';for(let i=0;i<n;i++){const y=43+i*5.5;s+=`<path d="M23 ${y} L32 ${y+4.5} L41 ${y}" fill="none" stroke="${mk}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>`;}return s;};
+  const star=(x,y,r,f)=>{const pts=[];for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;pts.push((x+rr*Math.cos(a)).toFixed(1)+','+(y+rr*Math.sin(a)).toFixed(1));}return `<polygon points="${pts.join(' ')}" fill="${f}" stroke="${mk}" stroke-width="1" stroke-linejoin="round"/>`;};
+  let body='';
+  if(k==='yeni'){body=`<circle cx="32" cy="32" r="26" fill="url(#${g})" stroke="${d}" stroke-width="2.5" stroke-dasharray="5 3.5"/>`+rbBall(32,29,13)+`<path d="M32 55 V46" stroke="#2f7d45" stroke-width="2.6" stroke-linecap="round"/><path d="M32 48 C27 47 24 44 24 41 C29 41 32 44 32 48 Z M32 48 C37 47 40 44 40 41 C35 41 32 44 32 48 Z" fill="#4fbf6c" stroke="#2f7d45" stroke-width="1"/>`;}
+  else if(k==='bronz'){body=shield+rbBall(32,27,11.5)+chev(1);}
+  else if(k==='gumus'){body=shield+rbBall(32,26,11)+chev(2);}
+  else if(k==='altin'){body=shield+rbBall(32,26,11)+chev(2)+star(32,7,6.5,'#fff6c4');}
+  else if(k==='platin'){const wing=s=>`<path d="M${32+s*21} 18 C${32+s*34} 14 ${32+s*35} 32 ${32+s*24} 42 C${32+s*29} 33 ${32+s*27} 27 ${32+s*21} 28 Z" fill="${l}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M${32+s*23} 22 C${32+s*29} 22 ${32+s*30} 28 ${32+s*27} 33" fill="none" stroke="${d}" stroke-width="1.2"/>`;
+    body=wing(-1)+wing(1)+shield+rbBall(32,26,11)+chev(2)+star(32,7,6.5,'#eafffc');}
+  else if(k==='elmas'){body=`<path d="M32 2 L60 32 L32 62 L4 32 Z" fill="url(#${g})" stroke="${d}" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 2 L45 32 L32 62 M32 2 L19 32 L32 62 M4 32 H60" stroke="#fff" stroke-opacity=".35" stroke-width="1.3" fill="none"/>`+rbBall(32,31,12)+star(32,52,5,'#ffffff')+star(13,32,4,'#ffffff')+star(51,32,4,'#ffffff');}
+  else if(k==='usta'){let lau='';for(const sd of [-1,1]){lau+=`<path d="M${32+sd*8} 60 C${32+sd*26} 56 ${32+sd*30} 40 ${32+sd*27} 20" fill="none" stroke="#8a6200" stroke-width="1.6"/>`;
+      for(let i=0;i<5;i++){const t=i/4;const a=(105+t*95)*Math.PI/180;const X=32+sd*(-27*Math.cos(a)),Y=36+27*Math.sin(a)*0.95;const rot=sd*((105+t*95)-90+30);
+        lau+=`<ellipse cx="${X.toFixed(1)}" cy="${Y.toFixed(1)}" rx="2.5" ry="5.6" transform="rotate(${rot.toFixed(0)} ${X.toFixed(1)} ${Y.toFixed(1)})" fill="#ffd54a" stroke="#8a6200" stroke-width=".9"/>`;}}
+    body=lau+shield+rbBall(32,29,11)+chev(2)+`<path d="M20 14 L22.5 3 L28 9.5 L32 1.5 L36 9.5 L41.5 3 L44 14 Z" fill="#ffd54a" stroke="#8a6200" stroke-width="1.6" stroke-linejoin="round"/><circle cx="32" cy="2" r="1.8" fill="#ff5a7a"/><circle cx="22.5" cy="3.5" r="1.2" fill="#7fd3ff"/><circle cx="41.5" cy="3.5" r="1.2" fill="#7fd3ff"/>`;}
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 72 72" width="64" height="64">${defs}${body}</svg>`;}
+
+const RKEY={'Yerleşiyor':'yeni','Bronz':'bronz','Gümüş':'gumus','Altın':'altin','Platin':'platin','Elmas':'elmas','Usta':'usta'};
+const RBC={};const rankSvg=n=>{const k=RKEY[n]||'yeni';return RBC[k]||(RBC[k]=rankBadge(k,'c'));};
+function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk'+(short?' sm':'');s.style.setProperty('--rk',k.c);const pl=k.n==='Yerleşiyor';
+  s.innerHTML=rankSvg(k.n);if(short!==true||pl){const t=document.createElement('b');t.textContent=pl?'Yeni':short==='name'?k.n:k.n+' '+k.r;s.appendChild(t);}
+  s.title=pl?`Yeni oyuncu: ilk 5 maçını oynayınca rütbesi belli olur (${Math.min(5,Number(g)||0)}/5)`:k.n+' rütbesi · '+k.r+' beceri puanı';return s;}
 
 // ---------- Arkadaşlar ve davet ----------
 let FRIENDS=[],FR_AT=0;
@@ -2373,7 +2410,7 @@ function statsView(box,d){
   [['Maç',d.played],['Gol',d.goals],['Asist',d.assists],['Galibiyet',d.won]].forEach(([l,v])=>{const t=document.createElement('div');const b=document.createElement('b');b.textContent=Number(v)||0;const s=document.createElement('span');s.textContent=l;t.append(b,s);tiles.appendChild(t);});
   box.appendChild(tiles);
   {const k=rankOf(d.rating||1000,d.rgames||0);const rb=document.createElement('div');rb.className='rankbar';rb.dataset.own=box.id==='myStats'?'1':'';rb.style.setProperty('--rk',k.c);
-   const nx=RANKS.find(x=>x[0]>k.r);rb.innerHTML='<b></b><span></span><i><em></em></i>';rb.querySelector('b').textContent=k.n;
+   const nx=RANKS.find(x=>x[0]>k.r);rb.innerHTML='<div class="rbig"></div><b></b><span></span><i><em></em></i>';rb.querySelector('.rbig').innerHTML=rankSvg(k.n);rb.querySelector('b').textContent=k.n==='Yerleşiyor'?'Yeni oyuncu':k.n;
    rb.querySelector('span').textContent=k.n==='Yerleşiyor'?`${Math.max(0,5-(d.rgames||0))} maç sonra lige yerleşir`:`${k.r} puan`+(nx?` · ${nx[1]} için ${nx[0]-k.r}`:'');
    const lo=[...RANKS].reverse().find(x=>x[0]<=k.r)||RANKS[0];rb.querySelector('em').style.width=(nx?Math.max(4,Math.min(100,(k.r-lo[0])/(nx[0]-lo[0])*100)):100)+'%';box.appendChild(rb);}
   if(box.id==='myStats'){const w=document.createElement('div');w.className='myrew';const h=document.createElement('span');h.textContent='Sezon ödüllerin: ';w.appendChild(h);
