@@ -1567,7 +1567,7 @@ function rankBadge(k,id){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 72 72" width="64" height="64">${defs}${body}</svg>`;}
 
 const RKEY={'Yerleşiyor':'yeni','Bronz':'bronz','Gümüş':'gumus','Altın':'altin','Platin':'platin','Elmas':'elmas','Usta':'usta'};
-const RBC={};const rankSvg=n=>{const k=RKEY[n]||'yeni';return RBC[k]||(RBC[k]=rankBadge(k,'c'));};
+const rankSvg=n=>{const k=RKEY[n]||'yeni';return `<img src="assets/ranks/${k}.webp" alt="" draggable="false">`;};
 function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk'+(short?' sm':'');s.style.setProperty('--rk',k.c);const pl=k.n==='Yerleşiyor';
   s.innerHTML=rankSvg(k.n);if(short!==true||pl){const t=document.createElement('b');t.textContent=pl?'Yeni':short==='name'?k.n:k.n+' '+k.r;s.appendChild(t);}
   s.title=pl?`Yeni oyuncu: ilk 5 maçını oynayınca rütbesi belli olur (${Math.min(5,Number(g)||0)}/5)`:k.n+' rütbesi · '+k.r+' beceri puanı';return s;}
