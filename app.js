@@ -1533,7 +1533,7 @@ async function renderRanking(box){
   const me=sec.querySelector('.rme');
   me.textContent=d.me?`Senin sıran: ${d.me.pos}. (${d.total} oyuncu içinde) · ${d.me.rating} puan`:(MYR.g<5?`Sıralamaya girmek için ${5-MYR.g} maç daha oyna.`:'');
 }
-function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk';s.style.setProperty('--rk',k.c);s.textContent=short?(k.n==='Yerleşiyor'?'?':k.n[0]):k.n+(k.n==='Yerleşiyor'?'':' '+k.r);s.title=k.n+' · '+k.r+' puan';return s;}
+function rankEl(r,g,short){const k=rankOf(r,g);const s=document.createElement('span');s.className='rk';s.style.setProperty('--rk',k.c);const pl=k.n==='Yerleşiyor';s.textContent=short?(pl?'Yeni':k.n):k.n+(pl?'':' '+k.r);s.title=pl?`Yeni oyuncu: ilk 5 maçını oynayınca rütbesi belli olur (${Math.min(5,Number(g)||0)}/5)`:k.n+' rütbesi · '+k.r+' beceri puanı';return s;}
 
 // ---------- Arkadaşlar ve davet ----------
 let FRIENDS=[],FR_AT=0;
