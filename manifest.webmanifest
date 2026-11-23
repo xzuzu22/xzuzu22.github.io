@@ -1,6 +1,6 @@
 {
-  "name": "Uzkball",
-  "short_name": "Uzkball",
+  "name": "Zkpball",
+  "short_name": "Zkpball",
   "description": "Takım ve lig sistemli çevrimiçi futbol oyunu",
   "start_url": "./",
   "scope": "./",

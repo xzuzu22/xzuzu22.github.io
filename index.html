@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Uzkball</title>
-<meta name="description" content="Uzkball: tarayıcıda oynanan, takım ve lig sistemli çevrimiçi futbol oyunu.">
+<title>Zkpball</title>
+<meta name="description" content="Zkpball: tarayıcıda oynanan, takım ve lig sistemli çevrimiçi futbol oyunu.">
 <link rel="icon" href="assets/icon.png">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -12,17 +12,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Uzkball">
+<meta name="apple-mobile-web-app-title" content="Zkpball">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Inter:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=af3a35c">
+<link rel="stylesheet" href="style.css?v=29b1662">
 </head>
 <body>
 
 <!-- GİRİŞ -->
 <section class="screen" id="gate">
   <div class="gate">
-    <img class="logo" src="assets/logo.webp" alt="Uzkball" width="747" height="200">
+    <img class="logo" src="assets/logo.webp" alt="Zkpball" width="1103" height="200">
     <form class="panel" id="gateForm">
       <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1 1 0"><label class="lbl" for="gNick">Takma adını seç</label><input type="text" id="gNick" maxlength="14" autocomplete="nickname" placeholder="örn. Torriq"></div><div class="field" style="flex:0 0 82px"><label class="lbl" for="gNum">Forma no</label><input type="number" id="gNum" min="1" max="99" inputmode="numeric" placeholder="10"></div></div>
       <p class="note" style="margin:-4px 0 0">Forma numaranı şimdi ücretsiz seçiyorsun. Sonra değiştirmek için forma değiştirme kartı gerekir (1 tane hediye).</p>
@@ -38,7 +38,7 @@
 <section class="screen" id="main" hidden>
   <div class="wrap wide">
     <div class="topbar">
-      <img src="assets/logo.webp" alt="Uzkball" width="150" height="40">
+      <img src="assets/logo.webp" alt="Zkpball" width="220" height="40">
       <span class="netdot" id="netState">bağlanıyor</span><span class="tag" id="onlineCount"></span>
       <button class="me ghost" id="meChip" style="padding:6px 10px"><span class="av" id="meAv"></span><span id="meNick"></span></button>
     </div>
@@ -55,7 +55,7 @@
       <div class="panel rejoin tutbox" id="tutBox" hidden></div>
       <div class="install" id="installBox" hidden>
         <img src="assets/icon-192.png" alt="" width="44" height="44">
-        <div class="itxt"><b>Uzkball'u uygulama olarak ekle</b><span>Ana ekrandan açılır: tam ekran, adres çubuğu yok, daha akıcı.</span></div>
+        <div class="itxt"><b>Zkpball'u uygulama olarak ekle</b><span>Ana ekrandan açılır: tam ekran, adres çubuğu yok, daha akıcı.</span></div>
         <button class="big" id="installBtn" type="button">Ana ekrana ekle</button>
         <button class="ghost" id="installLater" type="button" aria-label="Şimdi değil">✕</button>
       </div>
@@ -313,12 +313,12 @@
     <li>Listede <b>Ana Ekrana Ekle</b>'yi seç.</li>
     <li>Sağ üstteki <b>Ekle</b>'ye dokun.</li>
   </ol>
-  <p class="note">Sonra Uzkball'u ana ekrandaki simgesinden aç. Telefonu yan çevirince oyun tam ekran açılır.</p>
+  <p class="note">Sonra Zkpball'u ana ekrandaki simgesinden aç. Telefonu yan çevirince oyun tam ekran açılır.</p>
   <button class="big" id="iosInstallOk" type="button">Tamam</button>
 </div></div>
 <div class="overlay statov" id="statOv" hidden><div class="panel" id="statBody"></div></div>
 
-<script type="module" src="app.js?v=af3a35c"></script>
+<script type="module" src="app.js?v=29b1662"></script>
 <div class="invtoast" id="invToast" hidden></div>
 <div class="afktoast" id="afkToast" hidden></div>
 <div class="overlay adminov" id="adminOv" hidden><div class="panel adminpanel"><div class="row" style="justify-content:space-between;align-items:center"><b class="admtitle">Yönetici paneli</b><button class="chip" id="adminClose">Kapat</button></div><div id="adminBody"></div></div></div>

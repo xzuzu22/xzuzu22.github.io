@@ -233,7 +233,7 @@ function drawTut(){const d=G.drill,st=TUT[d.step];if(!st)return;const t=performa
   if(st.k==='dribble'||st.k==='goal'){const b=G.ball;ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,b.r+6+Math.sin(t*1.5)*2,0,Math.PI*2);ctx.stroke();}
 }
 function renderTutBox(){const box=$('tutBox');if(!box)return;box.hidden=!!prof.tut||!!NET.room;if(box.hidden)return;box.innerHTML='';
-  const t=document.createElement('span');t.textContent='Uzkball\'a hoş geldin! Oynamayı 1 dakikada öğren: hareket, top sürme, şut ve kamera.';
+  const t=document.createElement('span');t.textContent='Zkpball\'a hoş geldin! Oynamayı 1 dakikada öğren: hareket, top sürme, şut ve kamera.';
   const b=document.createElement('button');b.className='big';b.textContent='Eğitime başla';b.onclick=()=>startTut();
   const x=document.createElement('button');x.className='chip';x.textContent='Biliyorum, geç';x.onclick=()=>{prof.tut=1;save();renderTutBox();};box.append(t,b,x);}
 function drillNext(first){
@@ -937,9 +937,9 @@ function repSave(){
   try{const rec=new MediaRecorder(cv2.captureStream(30),type?{mimeType:type,videoBitsPerSecond:4e6}:undefined);const parts=[];
     rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data);};
     rec.onstop=async()=>{const blob=new Blob(parts,{type:rec.mimeType||'video/webm'});const ext=/mp4/.test(blob.type)?'mp4':'webm';
-      const file=new File([blob],`uzkball-gol-${RP.i+1}.${ext}`,{type:blob.type});
-      if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Uzkball golü',text:'Şu gole bak! ⚽ uzkball'});$('repMsg').textContent='Paylaşıldı.';return;}catch(e){if(e&&e.name==='AbortError'){$('repMsg').textContent='';return;}}}
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`uzkball-gol-${RP.i+1}.${ext}`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);$('repMsg').textContent='Video hazır.';};
+      const file=new File([blob],`zkpball-gol-${RP.i+1}.${ext}`,{type:blob.type});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Zkpball golü',text:'Şu gole bak! ⚽ zkpball.com'});$('repMsg').textContent='Paylaşıldı.';return;}catch(e){if(e&&e.name==='AbortError'){$('repMsg').textContent='';return;}}}
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`zkpball-gol-${RP.i+1}.${ext}`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);$('repMsg').textContent='Video hazır.';};
     RP.t=0;RP.play=true;RP.speed=1;repLabel();rec.start();RP.rec=rec;$('repMsg').textContent='Kaydediliyor… klip bitince iner.';}catch(e){$('repMsg').textContent='Video kaydedilemedi.';}
 }
 $('repClose').onclick=()=>{if(RP.rec){try{RP.rec.stop();}catch(e){}RP.rec=null;}$('repOv').hidden=true;$('repMsg').textContent='';};
@@ -1044,10 +1044,21 @@ const cleanCol=c=>/^#[0-9a-f]{6}$/i.test(c)?c:'#ffffff';
 const cleanKit=k=>{const o={p:cleanCol(k&&k.p),s:cleanCol(k&&k.s),pat:PATTERNS.some(x=>x[0]===(k&&k.pat))?k.pat:'solid'};const b=k&&k.badge;if(b&&BADGE_SH.includes(b.s)&&BADGE_IC.includes(b.i))o.badge={s:b.s,i:b.i};return o;};
 const BADGE_SH=['shield','circle','hex','star'],BADGE_IC=['⚽','🦅','🐺','🦁','⚡','🔥','👑','⭐','🐉','🌙','⚓','🗡️'];
 
+// ---------- Alan adı taşıma: eski adres oyuncuyu hesabıyla birlikte zkpball.com'a gönderir ----------
+const NEW_HOME='https://zkpball.com',OLD_HOSTS=['xzuzu22.github.io'],MOVE_LIVE=false;
+(function moveHome(){if(!MOVE_LIVE||!OLD_HOSTS.includes(location.hostname))return;
+  let tok='',pj='';try{const k=Object.keys(localStorage).find(x=>/^sb-.*-auth-token$/.test(x));const v=k&&JSON.parse(localStorage.getItem(k));tok=v&&v.refresh_token||'';}catch(e){}
+  try{const p=localStorage.getItem('uzk-profile');if(p&&p.length<1500)pj=btoa(unescape(encodeURIComponent(p))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}catch(e){}
+  location.replace(NEW_HOME+'/'+(location.search||'')+(tok&&/^[A-Za-z0-9_\-.]+$/.test(tok)?'#mig='+tok+(pj?'&p='+pj:''):''));})();
 async function backendInit(){
   if(LIVE){
     const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
     sb=createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{realtime:{params:{eventsPerSecond:40}}});
+    // eski adresten (xzuzu22.github.io) taşınan oyuncu: hesabını yeni adreste sürdür
+    const mg=/^#mig=([A-Za-z0-9_\-.]+)(?:&p=([A-Za-z0-9_\-]+))?/.exec(location.hash);
+    if(mg){history.replaceState(null,'',location.pathname+location.search);
+      try{if(mg[2]){const pj=JSON.parse(decodeURIComponent(escape(atob(mg[2].replace(/-/g,'+').replace(/_/g,'/')))));if(pj&&typeof pj==="object"){Object.assign(prof,pj);save();}}}catch(e){}
+      try{const r=await sb.auth.refreshSession({refresh_token:mg[1]});if(r.error)console.warn('taşıma oturumu açılamadı',r.error.message);}catch(e){}}
     let {data:{session}}=await sb.auth.getSession();
     if(!session){const r=await sb.auth.signInAnonymously();if(r.error)throw r.error;session=r.data.session;}
     uid=session.user.id;isAnon=!!session.user.is_anonymous;userEmail=session.user.email||'';
@@ -1533,7 +1544,7 @@ async function renderRanking(box){
   const me=sec.querySelector('.rme');
   me.textContent=d.me?`Senin sıran: ${d.me.pos}. (${d.total} oyuncu içinde) · ${d.me.rating} puan`:(MYR.g<5?`Sıralamaya girmek için ${5-MYR.g} maç daha oyna.`:'');
 }
-// Uzkball rütbe rozetleri (SVG). [orta, koyu, açık, işaret]
+// Zkpball rütbe rozetleri (SVG). [orta, koyu, açık, işaret]
 const RB={yeni:['#c3cec8','#6f7c75','#eef3f0','#5f6b65'],bronz:['#d98f55','#7d441a','#f6c79c','#6b3812'],gumus:['#dfe5ea','#7f8a95','#ffffff','#56616c'],
   altin:['#ffcf3a','#a87700','#fff1a8','#8a6200'],platin:['#5fdccd','#15786e','#d4fff9','#0f5f57'],elmas:['#7fb8ff','#2350c4','#e3f1ff','#1a3f9e'],usta:['#df8cff','#6c25a8','#fbe3ff','#5a1a8f']};
 var RBN=0;
@@ -2022,13 +2033,13 @@ async function openCard(){
   stats.forEach(([l,v],i)=>{const cx=W/2+((i%3)-1)*320,cy=1010+Math.floor(i/3)*150;g.fillStyle='rgba(255,255,255,.07)';g.beginPath();g.roundRect(cx-145,cy-70,290,130,22);g.fill();
     g.fillStyle='#fff';g.font='800 56px system-ui,sans-serif';g.fillText(String(v??0),cx,cy+5);g.fillStyle='rgba(255,255,255,.6)';g.font='600 28px system-ui,sans-serif';g.fillText(l.toLocaleUpperCase('tr-TR'),cx,cy+45);});
   const rw=(typeof MYREW!=='undefined'?MYREW:[]).map(r=>TIERS[r.tier]&&TIERS[r.tier].i).filter(Boolean).slice(0,8).join(' ');
-  g.font='600 34px system-ui,sans-serif';g.fillStyle='rgba(255,255,255,.75)';g.fillText((rw?rw+'  ·  ':'')+'xzuzu22.github.io',W/2,H-80);
+  g.font='600 34px system-ui,sans-serif';g.fillStyle='rgba(255,255,255,.75)';g.fillText((rw?rw+'  ·  ':'')+'zkpball.com',W/2,H-80);
   c.toBlob(b=>{CARD_BLOB=b;$('cardImg').src=URL.createObjectURL(b);$('cardMsg').textContent='Arkadaşlarına gönder, sende kaç gol var görsünler!';
-    const f=new File([b],'uzkball-kartim.png',{type:'image/png'});$('cardShare').hidden=!(navigator.canShare&&navigator.canShare({files:[f]}));},'image/png');
+    const f=new File([b],'zkpball-kartim.png',{type:'image/png'});$('cardShare').hidden=!(navigator.canShare&&navigator.canShare({files:[f]}));},'image/png');
 }
 $('cardClose').onclick=()=>{$('cardOv').hidden=true;};
-$('cardDl').onclick=()=>{if(!CARD_BLOB)return;const a=document.createElement('a');a.href=URL.createObjectURL(CARD_BLOB);a.download='uzkball-kartim.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);};
-$('cardShare').onclick=async()=>{if(!CARD_BLOB)return;const f=new File([CARD_BLOB],'uzkball-kartim.png',{type:'image/png'});try{await navigator.share({files:[f],title:'Uzkball oyuncu kartım',text:'Uzkball\'da benimle maç yap! ⚽'});}catch(e){}};
+$('cardDl').onclick=()=>{if(!CARD_BLOB)return;const a=document.createElement('a');a.href=URL.createObjectURL(CARD_BLOB);a.download='zkpball-kartim.png';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);};
+$('cardShare').onclick=async()=>{if(!CARD_BLOB)return;const f=new File([CARD_BLOB],'zkpball-kartim.png',{type:'image/png'});try{await navigator.share({files:[f],title:'Zkpball oyuncu kartım',text:'Zkpball\'da benimle maç yap! ⚽'});}catch(e){}};
 
 // ---------- Telefon bildirimleri (Web Push) ----------
 const PUSH_KINDS=[['league','Lig maçı teklifleri ve maç saati hatırlatması'],['invite','Arkadaşından maç daveti'],['cup','Hafta sonu kupası başlıyor'],['friend','Arkadaşlık isteği']];
@@ -2045,7 +2056,7 @@ async function enablePush(){
 async function renderPush(){
   const box=$('pushBox');if(!box)return;box.innerHTML='';const note=t=>{const p=document.createElement('p');p.className='note';p.textContent=t;box.appendChild(p);return p;};
   const ok='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
-  if(isIOS&&!isStandalone()){note('iPhone/iPad\'de bildirim almak için önce Uzkball\'u ana ekrana ekle: Safari\'de Paylaş ⬆️ → "Ana Ekrana Ekle". Sonra ana ekrandaki simgeden açıp buradan bildirimleri aç.');return;}
+  if(isIOS&&!isStandalone()){note('iPhone/iPad\'de bildirim almak için önce Zkpball\'u ana ekrana ekle: Safari\'de Paylaş ⬆️ → "Ana Ekrana Ekle". Sonra ana ekrandaki simgeden açıp buradan bildirimleri aç.');return;}
   if(!ok){note('Bu tarayıcı telefon bildirimlerini desteklemiyor. Chrome, Edge, Firefox ya da ana ekrana eklenmiş Safari kullan.');return;}
   if(location.protocol!=='https:'&&location.hostname!=='localhost'){note('Bildirimler yalnızca güvenli bağlantıda (https) çalışır.');return;}
   let sub=null;try{sub=await pushSub();}catch(e){}
